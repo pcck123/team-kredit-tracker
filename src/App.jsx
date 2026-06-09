@@ -1,28 +1,15 @@
 import { useState, useEffect, useRef, useContext, createContext, useMemo } from "react";
+import { supabase } from "./supabase";
 
-// ─── Storage Keys ─────────────────────────────────────────────────────────────
-const WEEKLY_GOAL              = 62500;
-const STORAGE_KEY_ENTRIES      = "kredit-tracker-entries";
-const STORAGE_KEY_ANGEBOTE     = "kredit-tracker-angebote";
-const STORAGE_KEY_TERMINE      = "kredit-tracker-termine";
-const STORAGE_KEY_HISTORY      = "kredit-tracker-history";
-const STORAGE_KEY_CURRENT_WEEK = "kredit-tracker-current-week";
-const STORAGE_KEY_VERSION      = "kredit-tracker-version";
-const STORAGE_KEY_THEME        = "kredit-tracker-theme";
-const TERMINE_GOAL             = 8;
-const MILESTONES               = [25, 50, 75, 100];
-const DATA_VERSION             = "2";
+// ─── Constants ────────────────────────────────────────────────────────────────
+const WEEKLY_GOAL   = 62500;
+const TERMINE_GOAL  = 8;
+const MILESTONES    = [25, 50, 75, 100];
 
-// ─── localStorage helpers ────────────────────────────────────────────────────
-function lsGet(key)        { try { return localStorage.getItem(key);    } catch { return null; } }
-function lsSet(key, value) { try { localStorage.setItem(key, value);    } catch {} }
-
-function clearAllStorage() {
-  [STORAGE_KEY_ENTRIES, STORAGE_KEY_ANGEBOTE, STORAGE_KEY_TERMINE,
-   STORAGE_KEY_HISTORY, STORAGE_KEY_CURRENT_WEEK]
-    .forEach((k) => localStorage.removeItem(k));
-  lsSet(STORAGE_KEY_VERSION, DATA_VERSION);
-}
+// Theme only stays in localStorage (it's personal, not shared)
+const STORAGE_KEY_THEME = "kredit-tracker-theme";
+function lsGet(key)        { try { return localStorage.getItem(key);  } catch { return null; } }
+function lsSet(key, value) { try { localStorage.setItem(key, value);  } catch {} }
 
 // ─── Theme Palettes ───────────────────────────────────────────────────────────
 const LIGHT = {
@@ -126,9 +113,9 @@ function getMonday(d = new Date()) {
   return mon;
 }
 function getKWLabel(mondayDate) {
-  const d        = new Date(mondayDate);
-  const jan4     = new Date(d.getFullYear(), 0, 4);
-  const sow1     = new Date(jan4);
+  const d    = new Date(mondayDate);
+  const jan4 = new Date(d.getFullYear(), 0, 4);
+  const sow1 = new Date(jan4);
   sow1.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
   return `KW ${Math.round((d - sow1) / (7 * 86400000)) + 1} / ${d.getFullYear()}`;
 }
@@ -139,8 +126,22 @@ function getMotivation(pct) {
   ).text;
 }
 
+// Map DB snake_case row → camelCase JS object used by HistoryView
+function mapHistoryRow(h) {
+  return {
+    weekKey:       h.week_key,
+    label:         h.label,
+    kredit:        h.kredit,
+    kreditGoal:    h.kredit_goal,
+    kreditReached: h.kredit_reached,
+    angebote:      h.angebote,
+    termine:       h.termine,
+    termineGoal:   h.termine_goal,
+    termineReached: h.termine_reached,
+  };
+}
+
 // ─── makeStyles ───────────────────────────────────────────────────────────────
-// Called at render time so every style picks up the current theme.
 function makeStyles(T) {
   return {
     screen: {
@@ -259,7 +260,6 @@ function makeStyles(T) {
       fontSize: 13, padding: "8px 18px",
       cursor: "pointer", transition: "color 0.2s, border-color 0.2s",
     },
-    // Toggle button
     themeToggle: {
       width: 38, height: 38, borderRadius: 10,
       background: T.bgInput,
@@ -269,7 +269,6 @@ function makeStyles(T) {
       transition: "background 0.3s, border-color 0.3s",
       flexShrink: 0,
     },
-    // Modal shared
     modalOverlay: {
       position: "fixed", inset: 0,
       background: T.overlay,
@@ -382,7 +381,7 @@ function ConfettiCanvas() {
 
 // ─── MilestoneBadge ──────────────────────────────────────────────────────────
 function MilestoneBadge({ milestone, achieved }) {
-  const { T, S } = useTheme();
+  const { T } = useTheme();
   return (
     <div style={{
       display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
@@ -483,7 +482,7 @@ function HistoryView({ history, onClearHistory }) {
           </button>
         </div>
         {history.map((h, i) => (
-          <div key={i} style={{
+          <div key={h.weekKey ?? i} style={{
             borderTop: i > 0 ? `1px solid ${T.border}` : "none",
             padding: "14px 18px",
             display: "flex", flexDirection: "column", gap: 8,
@@ -560,7 +559,7 @@ function HistoryView({ history, onClearHistory }) {
 
 // ─── Main App ────────────────────────────────────────────────────────────────
 export default function App() {
-  // ── Theme state ────────────────────────────────────────────────────────────
+  // ── Theme state (localStorage — personal, not shared) ─────────────────────
   const [dark, setDark] = useState(() => lsGet(STORAGE_KEY_THEME) === "dark");
   const T = dark ? DARK : LIGHT;
   const S = useMemo(() => makeStyles(T), [dark]);
@@ -572,15 +571,15 @@ export default function App() {
   };
 
   // ── App state ──────────────────────────────────────────────────────────────
-  const [entries,           setEntries]           = useState([]);
-  const [amountInput,       setAmountInput]        = useState("");
-  const [inputError,        setInputError]         = useState("");
-  const [showConfetti,      setShowConfetti]       = useState(false);
-  const [reachedMilestones, setReachedMilestones]  = useState(new Set());
-  const [pulsingMilestone,  setPulsingMilestone]   = useState(null);
-  const [loading,           setLoading]            = useState(true);
-  const [resetConfirm,      setResetConfirm]       = useState(false);
-  const [praise,            setPraise]             = useState(null);
+  const [entries,           setEntries]          = useState([]);
+  const [amountInput,       setAmountInput]       = useState("");
+  const [inputError,        setInputError]        = useState("");
+  const [showConfetti,      setShowConfetti]      = useState(false);
+  const [reachedMilestones, setReachedMilestones] = useState(new Set());
+  const [pulsingMilestone,  setPulsingMilestone]  = useState(null);
+  const [loading,           setLoading]           = useState(true);
+  const [resetConfirm,      setResetConfirm]      = useState(false);
+  const [praise,            setPraise]            = useState(null);
   const praiseTimer = useRef(null);
   const [angebote,  setAngebote]  = useState(0);
   const [termine,   setTermine]   = useState(0);
@@ -588,37 +587,102 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const prevPct = useRef(0);
 
-  // ── Load from localStorage ─────────────────────────────────────────────────
-  useEffect(() => {
-    if (lsGet(STORAGE_KEY_VERSION) !== DATA_VERSION) clearAllStorage();
+  // ── Supabase loaders ───────────────────────────────────────────────────────
+  async function reloadEntries() {
+    const { data } = await supabase.from("entries").select("*").order("ts");
+    setEntries(data || []);
+  }
 
-    const thisMonday    = getMonday().getTime();
-    let loadedEntries   = JSON.parse(lsGet(STORAGE_KEY_ENTRIES)  || "[]");
-    let loadedAngebote  = parseInt(lsGet(STORAGE_KEY_ANGEBOTE)   || "0", 10);
-    let loadedTermine   = parseInt(lsGet(STORAGE_KEY_TERMINE)    || "0", 10);
-    let loadedHistory   = JSON.parse(lsGet(STORAGE_KEY_HISTORY)  || "[]");
-    const storedWeekMs  = parseInt(lsGet(STORAGE_KEY_CURRENT_WEEK) || "0", 10);
-
-    if (storedWeekMs && storedWeekMs < thisMonday) {
-      const lastTotal = loadedEntries.reduce((s, e) => s + e.amount, 0);
-      if (lastTotal > 0 || loadedAngebote > 0 || loadedTermine > 0) {
-        const snap = {
-          weekKey: storedWeekMs, label: getKWLabel(new Date(storedWeekMs)),
-          kredit: lastTotal, kreditGoal: WEEKLY_GOAL, kreditReached: lastTotal >= WEEKLY_GOAL,
-          angebote: loadedAngebote,
-          termine: loadedTermine, termineGoal: TERMINE_GOAL, termineReached: loadedTermine >= TERMINE_GOAL,
-        };
-        loadedHistory = [snap, ...loadedHistory].slice(0, 52);
-        lsSet(STORAGE_KEY_HISTORY, JSON.stringify(loadedHistory));
-      }
-      lsSet(STORAGE_KEY_ENTRIES, "[]"); lsSet(STORAGE_KEY_ANGEBOTE, "0"); lsSet(STORAGE_KEY_TERMINE, "0");
-      setEntries([]); setAngebote(0); setTermine(0);
-    } else {
-      setEntries(loadedEntries); setAngebote(loadedAngebote); setTermine(loadedTermine);
+  async function reloadWeekState() {
+    const { data } = await supabase.from("week_state").select("*").eq("id", 1).single();
+    if (data) {
+      setAngebote(data.angebote ?? 0);
+      setTermine(data.termine ?? 0);
     }
-    if (!storedWeekMs || storedWeekMs < thisMonday) lsSet(STORAGE_KEY_CURRENT_WEEK, String(thisMonday));
-    setHistory(loadedHistory);
-    setLoading(false);
+  }
+
+  async function reloadHistory() {
+    const { data } = await supabase
+      .from("history").select("*").order("week_key", { ascending: false });
+    setHistory((data || []).map(mapHistoryRow));
+  }
+
+  // ── Initial load + week-rollover logic ────────────────────────────────────
+  useEffect(() => {
+    async function loadAll() {
+      setLoading(true);
+      const thisMonday = getMonday().getTime();
+
+      const [{ data: entriesData }, { data: wsData }, { data: histData }] =
+        await Promise.all([
+          supabase.from("entries").select("*").order("ts"),
+          supabase.from("week_state").select("*").eq("id", 1).single(),
+          supabase.from("history").select("*").order("week_key", { ascending: false }),
+        ]);
+
+      const ws         = wsData  || { angebote: 0, termine: 0, current_week_ms: thisMonday };
+      const rawEntries = entriesData || [];
+
+      // Auto-rollover when a new week has started
+      if (ws.current_week_ms && ws.current_week_ms < thisMonday) {
+        const weekTotal = rawEntries.reduce((s, e) => s + e.amount, 0);
+
+        if (weekTotal > 0 || ws.angebote > 0 || ws.termine > 0) {
+          // Only insert history snapshot if this weekKey isn't already there
+          const { data: existing } = await supabase
+            .from("history").select("id").eq("week_key", ws.current_week_ms).maybeSingle();
+          if (!existing) {
+            await supabase.from("history").insert({
+              week_key:       ws.current_week_ms,
+              label:          getKWLabel(new Date(ws.current_week_ms)),
+              kredit:         weekTotal,
+              kredit_goal:    WEEKLY_GOAL,
+              kredit_reached: weekTotal >= WEEKLY_GOAL,
+              angebote:       ws.angebote,
+              termine:        ws.termine,
+              termine_goal:   TERMINE_GOAL,
+              termine_reached: ws.termine >= TERMINE_GOAL,
+            });
+          }
+        }
+
+        // Clear entries and reset week_state to new week
+        await supabase.from("entries").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+        await supabase.from("week_state")
+          .update({ angebote: 0, termine: 0, current_week_ms: thisMonday })
+          .eq("id", 1);
+
+        setEntries([]);
+        setAngebote(0);
+        setTermine(0);
+
+        // Reload history after insert
+        const { data: newHist } = await supabase
+          .from("history").select("*").order("week_key", { ascending: false });
+        setHistory((newHist || []).map(mapHistoryRow));
+      } else {
+        setEntries(rawEntries);
+        setAngebote(ws.angebote ?? 0);
+        setTermine(ws.termine  ?? 0);
+        setHistory((histData || []).map(mapHistoryRow));
+      }
+
+      setLoading(false);
+    }
+
+    loadAll();
+  }, []);
+
+  // ── Realtime subscriptions ─────────────────────────────────────────────────
+  useEffect(() => {
+    const channel = supabase
+      .channel("db-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "entries" },    reloadEntries)
+      .on("postgres_changes", { event: "*", schema: "public", table: "week_state" }, reloadWeekState)
+      .on("postgres_changes", { event: "*", schema: "public", table: "history" },    reloadHistory)
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
   }, []);
 
   const total    = entries.reduce((s, e) => s + e.amount, 0);
@@ -640,57 +704,72 @@ export default function App() {
     prevPct.current = pct;
   }, [pct, loading]);
 
-  // ── Handlers ───────────────────────────────────────────────────────────────
-  const saveEntries = (e) => { lsSet(STORAGE_KEY_ENTRIES, JSON.stringify(e)); setEntries(e); };
-
+  // ── Toast helper ───────────────────────────────────────────────────────────
   const showToast = (emoji, text, isGoal = false, isInfo = false, ms = 3500) => {
     setPraise({ emoji, text, isGoal, isInfo });
     if (praiseTimer.current) clearTimeout(praiseTimer.current);
     praiseTimer.current = setTimeout(() => setPraise(null), ms);
   };
 
-  const handleAddEntry = () => {
+  // ── Handlers ───────────────────────────────────────────────────────────────
+  const handleAddEntry = async () => {
     const val = parseFloat(amountInput.replace(/\./g, "").replace(",", "."));
     if (!val || isNaN(val) || val <= 0) { setInputError("Bitte einen gültigen Betrag eingeben."); return; }
     setInputError("");
-    const updated     = [...entries, { amount: val, ts: Date.now() }];
-    saveEntries(updated);
+
+    const { error } = await supabase.from("entries").insert({ amount: val, ts: Date.now() });
+    if (error) { setInputError("Fehler beim Speichern. Bitte nochmal versuchen."); return; }
+
     setAmountInput("");
-    const newTotal    = updated.reduce((s, e) => s + e.amount, 0);
+    const newTotal    = total + val;
     const justReached = newTotal >= WEEKLY_GOAL && total < WEEKLY_GOAL;
     const p = getRandomPraise(justReached);
     showToast(p.emoji, p.text, justReached, false, justReached ? 6000 : 3500);
   };
 
-  const handleAddAngebot    = () => { const n = angebote + 1;              setAngebote(n); lsSet(STORAGE_KEY_ANGEBOTE, String(n)); };
-  const handleRemoveAngebot = () => { const n = Math.max(0, angebote - 1); setAngebote(n); lsSet(STORAGE_KEY_ANGEBOTE, String(n)); };
-  const handleAddTermin     = () => { const n = termine + 1;               setTermine(n);  lsSet(STORAGE_KEY_TERMINE,  String(n)); };
-  const handleRemoveTermin  = () => { const n = Math.max(0, termine - 1);  setTermine(n);  lsSet(STORAGE_KEY_TERMINE,  String(n)); };
+  const handleAddAngebot    = async () => { const n = angebote + 1;              setAngebote(n); await supabase.from("week_state").update({ angebote: n }).eq("id", 1); };
+  const handleRemoveAngebot = async () => { const n = Math.max(0, angebote - 1); setAngebote(n); await supabase.from("week_state").update({ angebote: n }).eq("id", 1); };
+  const handleAddTermin     = async () => { const n = termine + 1;               setTermine(n);  await supabase.from("week_state").update({ termine: n }).eq("id", 1); };
+  const handleRemoveTermin  = async () => { const n = Math.max(0, termine - 1);  setTermine(n);  await supabase.from("week_state").update({ termine: n }).eq("id", 1); };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     const mon = getMonday().getTime();
+
     if (total > 0 || angebote > 0 || termine > 0) {
-      const hist = JSON.parse(lsGet(STORAGE_KEY_HISTORY) || "[]");
-      if (!hist.some((h) => h.weekKey === mon)) {
-        const snap = { weekKey: mon, label: getKWLabel(new Date(mon)),
-          kredit: total, kreditGoal: WEEKLY_GOAL, kreditReached: total >= WEEKLY_GOAL,
-          angebote, termine, termineGoal: TERMINE_GOAL, termineReached: termine >= TERMINE_GOAL };
-        const newHist = [snap, ...hist].slice(0, 52);
-        lsSet(STORAGE_KEY_HISTORY, JSON.stringify(newHist));
-        setHistory(newHist);
+      const { data: existing } = await supabase
+        .from("history").select("id").eq("week_key", mon).maybeSingle();
+      if (!existing) {
+        await supabase.from("history").insert({
+          week_key:        mon,
+          label:           getKWLabel(new Date(mon)),
+          kredit:          total,
+          kredit_goal:     WEEKLY_GOAL,
+          kredit_reached:  total >= WEEKLY_GOAL,
+          angebote,
+          termine,
+          termine_goal:    TERMINE_GOAL,
+          termine_reached: termine >= TERMINE_GOAL,
+        });
       }
     }
-    lsSet(STORAGE_KEY_ENTRIES, "[]"); lsSet(STORAGE_KEY_ANGEBOTE, "0");
-    lsSet(STORAGE_KEY_TERMINE, "0"); lsSet(STORAGE_KEY_CURRENT_WEEK, String(mon));
+
+    await supabase.from("entries").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    await supabase.from("week_state")
+      .update({ angebote: 0, termine: 0, current_week_ms: mon })
+      .eq("id", 1);
+
     setEntries([]); setAngebote(0); setTermine(0);
     setReachedMilestones(new Set()); setShowConfetti(false); setResetConfirm(false);
     prevPct.current = 0;
   };
 
-  const handleClearHistory = () => {
-    lsSet(STORAGE_KEY_HISTORY, "[]"); lsSet(STORAGE_KEY_ENTRIES, "[]");
-    lsSet(STORAGE_KEY_ANGEBOTE, "0"); lsSet(STORAGE_KEY_TERMINE, "0");
-    lsSet(STORAGE_KEY_CURRENT_WEEK, String(getMonday().getTime()));
+  const handleClearHistory = async () => {
+    await supabase.from("history").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    await supabase.from("entries").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    await supabase.from("week_state")
+      .update({ angebote: 0, termine: 0, current_week_ms: getMonday().getTime() })
+      .eq("id", 1);
+
     setHistory([]); setEntries([]); setAngebote(0); setTermine(0);
     setReachedMilestones(new Set()); setShowConfetti(false);
     prevPct.current = 0;
@@ -768,7 +847,6 @@ export default function App() {
               }}>🏦</div>
               <h1 style={S.title}>Fu-Fighters</h1>
             </div>
-            {/* Dark / Light Toggle */}
             <button style={S.themeToggle} onClick={toggleDark} title={dark ? "Light Mode" : "Dark Mode"}>
               {dark ? "☀️" : "🌙"}
             </button>
@@ -924,13 +1002,13 @@ export default function App() {
                   <span style={{ fontSize: 12, fontWeight: 500, color: T.textMuted }}>{entries.length} Einträge</span>
                 </div>
                 {loading ? (
-                  <div style={S.emptyState}>Lade Daten …</div>
+                  <div style={S.emptyState}>Verbinde mit Supabase …</div>
                 ) : entries.length === 0 ? (
                   <div style={S.emptyState}>Noch keine Einträge — starte die Woche stark!</div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 260, overflowY: "auto" }}>
                     {[...entries].sort((a, b) => b.ts - a.ts).slice(0, 20).map((e, i) => (
-                      <div key={i} style={{
+                      <div key={e.id ?? i} style={{
                         display: "flex", alignItems: "center", gap: 10,
                         padding: "9px 12px", borderRadius: 8,
                         background: T.bgInput, border: `1px solid ${T.border}`,
