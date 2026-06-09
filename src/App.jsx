@@ -9,6 +9,27 @@ const STORAGE_KEY_CURRENT_WEEK = "kredit-tracker-current-week";
 const TERMINE_GOAL = 8;
 const MILESTONES = [25, 50, 75, 100];
 
+// ---------- Sparkassen Farbpalette ----------
+const C = {
+  red:        "#E2001A",   // Sparkassen-Rot
+  redDark:    "#B80016",   // Hover / Akzent
+  redLight:   "#FFF0F1",   // Sehr heller Rot-Ton für Backgrounds
+  white:      "#FFFFFF",
+  bgPage:     "#F0F2F4",   // Seiten-Hintergrund
+  bgCard:     "#FFFFFF",   // Karten-Hintergrund
+  bgInput:    "#F5F5F5",   // Input-Hintergrund
+  border:     "#E0E0E0",   // Trennlinien
+  text:       "#1A1A1A",   // Primärtext
+  textSub:    "#555555",   // Sekundärtext
+  textMuted:  "#999999",   // Hinweistext
+  success:    "#2E7D32",   // Grün für erreichte Ziele
+  successBg:  "#E8F5E9",
+  purple:     "#6D3C9E",   // Termine-Akzent
+  purpleLight:"#F3EDF9",
+  blue:       "#1565C0",   // Angebote-Akzent
+  blueLight:  "#E3F0FF",
+};
+
 const PRAISE_MESSAGES = [
   { emoji: "💪", text: "Stark! Du bringst das Team voran." },
   { emoji: "🌟", text: "Ausgezeichnet! Das macht den Unterschied." },
@@ -83,17 +104,10 @@ function getMotivation(pct) {
 // ---------- localStorage helpers ----------
 
 function lsGet(key) {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
+  try { return localStorage.getItem(key); } catch { return null; }
 }
-
 function lsSet(key, value) {
-  try {
-    localStorage.setItem(key, value);
-  } catch {}
+  try { localStorage.setItem(key, value); } catch {}
 }
 
 // ---------- Sub-components ----------
@@ -108,7 +122,7 @@ function ConfettiCanvas() {
     const ctx = canvas.getContext("2d");
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-    const colors = ["#00C896", "#1A3560", "#FFD700", "#FFFFFF", "#4A9EFF"];
+    const colors = [C.red, "#B80016", "#FFD700", "#FFFFFF", "#FF6680"];
     particles.current = Array.from({ length: 140 }, () => ({
       x: Math.random() * canvas.width,
       y: -20 - Math.random() * 100,
@@ -126,9 +140,7 @@ function ConfettiCanvas() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       let alive = false;
       particles.current.forEach((p) => {
-        p.x += p.vx;
-        p.y += p.vy;
-        p.rot += p.rotSpeed;
+        p.x += p.vx; p.y += p.vy; p.rot += p.rotSpeed;
         if (p.y > canvas.height * 0.7) p.alpha -= 0.025;
         if (p.alpha > 0) {
           alive = true;
@@ -157,37 +169,25 @@ function ConfettiCanvas() {
 
 function MilestoneBadge({ milestone, achieved }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 4,
-        opacity: achieved ? 1 : 0.35,
-        transition: "opacity 0.5s, transform 0.3s",
-        transform: achieved ? "scale(1.1)" : "scale(1)",
-      }}
-    >
-      <div
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: "50%",
-          background: achieved
-            ? "linear-gradient(135deg, #00C896, #00A87A)"
-            : "#1E3A6E",
-          border: achieved ? "2px solid #00C896" : "2px solid #2A4A8A",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 14,
-          boxShadow: achieved ? "0 0 12px rgba(0,200,150,0.5)" : "none",
-          transition: "all 0.4s",
-        }}
-      >
+    <div style={{
+      display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+      opacity: achieved ? 1 : 0.4,
+      transition: "opacity 0.5s, transform 0.3s",
+      transform: achieved ? "scale(1.12)" : "scale(1)",
+    }}>
+      <div style={{
+        width: 38, height: 38, borderRadius: "50%",
+        background: achieved ? C.red : C.bgInput,
+        border: `2px solid ${achieved ? C.red : C.border}`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 13, fontWeight: 700,
+        color: achieved ? C.white : C.textMuted,
+        boxShadow: achieved ? `0 2px 10px rgba(226,0,26,0.35)` : "none",
+        transition: "all 0.4s",
+      }}>
         {achieved ? "✓" : `${milestone}%`}
       </div>
-      <span style={{ fontSize: 10, color: achieved ? "#00C896" : "#4A6490", fontWeight: 600 }}>
+      <span style={{ fontSize: 10, color: achieved ? C.red : C.textMuted, fontWeight: 700 }}>
         {milestone}%
       </span>
     </div>
@@ -197,18 +197,9 @@ function MilestoneBadge({ milestone, achieved }) {
 function HistoryView({ history }) {
   if (history.length === 0) {
     return (
-      <div
-        style={{
-          textAlign: "center",
-          padding: "48px 24px",
-          color: "#3A5278",
-          fontSize: 14,
-          lineHeight: 1.7,
-        }}
-      >
+      <div style={{ textAlign: "center", padding: "48px 24px", color: C.textMuted, fontSize: 14, lineHeight: 1.7 }}>
         <div style={{ fontSize: 36, marginBottom: 12 }}>📊</div>
-        Noch keine abgeschlossenen Wochen.
-        <br />
+        Noch keine abgeschlossenen Wochen.<br />
         Nach dem ersten Reset erscheinen hier die Ergebnisse.
       </div>
     );
@@ -222,200 +213,85 @@ function HistoryView({ history }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* Summary stats */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
         {[
-          { label: "Wochen gesamt", value: history.length, color: "#4A9EFF" },
-          { label: "Kreditziel ✓", value: `${kreditReachedCount}×`, color: "#00C896" },
-          { label: "Terminziel ✓", value: `${termineReachedCount}×`, color: "#C084FC" },
+          { label: "Wochen gesamt", value: history.length,           color: C.blue },
+          { label: "Kreditziel ✓",  value: `${kreditReachedCount}×`, color: C.red },
+          { label: "Terminziel ✓",  value: `${termineReachedCount}×`,color: C.purple },
         ].map(({ label, value, color }) => (
-          <div
-            key={label}
-            style={{
-              background: "#132040",
-              border: "1px solid #1E3A6E",
-              borderRadius: 12,
-              padding: "14px 10px",
-              textAlign: "center",
-            }}
-          >
-            <div style={{ fontSize: 20, fontWeight: 800, color }}>{value}</div>
-            <div style={{ fontSize: 10, color: "#4A6490", marginTop: 4, fontWeight: 600 }}>
-              {label}
-            </div>
+          <div key={label} style={styles.card}>
+            <div style={{ fontSize: 22, fontWeight: 800, color }}>{value}</div>
+            <div style={{ fontSize: 10, color: C.textMuted, marginTop: 4, fontWeight: 600 }}>{label}</div>
           </div>
         ))}
       </div>
 
-      <div
-        style={{
-          background: "#132040",
-          border: "1px solid #1E3A6E",
-          borderRadius: 12,
-          padding: "16px 18px",
-        }}
-      >
-        <div
-          style={{
-            fontSize: 11,
-            fontWeight: 700,
-            color: "#94B8E8",
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-            marginBottom: 14,
-          }}
-        >
-          Ø Durchschnitt
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {/* Averages */}
+      <div style={styles.card}>
+        <div style={styles.sectionLabel}>Ø Durchschnitt</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-              <span style={{ fontSize: 13, color: "#CBD5E1" }}>Kredit</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#00C896" }}>
-                {new Intl.NumberFormat("de-DE", {
-                  style: "currency",
-                  currency: "EUR",
-                  maximumFractionDigits: 0,
-                }).format(avgKredit)}{" "}
-                ({avgKreditPct}%)
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+              <span style={{ fontSize: 13, color: C.textSub }}>Kredit</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: C.red }}>
+                {new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(avgKredit)} ({avgKreditPct}%)
               </span>
             </div>
-            <div
-              style={{
-                height: 6,
-                background: "#0A1628",
-                borderRadius: 3,
-                overflow: "hidden",
-                border: "1px solid #1E3A6E",
-              }}
-            >
-              <div
-                style={{
-                  height: "100%",
-                  width: `${Math.min(avgKreditPct, 100)}%`,
-                  background: "linear-gradient(90deg,#0077CC,#00C896)",
-                  borderRadius: 3,
-                }}
-              />
+            <div style={styles.barWrap}>
+              <div style={{ ...styles.barFill, width: `${Math.min(avgKreditPct, 100)}%`, background: C.red }} />
             </div>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 13, color: "#CBD5E1" }}>Ø Termine pro Woche</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: "#C084FC" }}>
-              {avgTermine} / 8
-            </span>
+            <span style={{ fontSize: 13, color: C.textSub }}>Ø Termine pro Woche</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: C.purple }}>{avgTermine} / 8</span>
           </div>
         </div>
       </div>
 
-      <div
-        style={{
-          background: "#132040",
-          border: "1px solid #1E3A6E",
-          borderRadius: 12,
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            padding: "14px 18px 10px",
-            fontSize: 11,
-            fontWeight: 700,
-            color: "#94B8E8",
-            letterSpacing: "0.08em",
-            textTransform: "uppercase",
-          }}
-        >
-          Wochendetails
-        </div>
+      {/* Week list */}
+      <div style={{ ...styles.card, padding: 0, overflow: "hidden" }}>
+        <div style={{ padding: "14px 18px 10px", ...styles.sectionLabel }}>Wochendetails</div>
         {history.map((h, i) => (
-          <div
-            key={i}
-            style={{
-              borderTop: "1px solid #1A3060",
-              padding: "14px 18px",
-              display: "flex",
-              flexDirection: "column",
-              gap: 8,
-            }}
-          >
+          <div key={i} style={{
+            borderTop: `1px solid ${C.border}`,
+            padding: "14px 18px",
+            display: "flex", flexDirection: "column", gap: 8,
+          }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#FFFFFF" }}>{h.label}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{h.label}</span>
               <div style={{ display: "flex", gap: 6 }}>
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    padding: "3px 8px",
-                    borderRadius: 20,
-                    background: h.kreditReached
-                      ? "rgba(0,200,150,0.15)"
-                      : "rgba(255,100,100,0.1)",
-                    color: h.kreditReached ? "#00C896" : "#FF8080",
-                    border: `1px solid ${
-                      h.kreditReached ? "rgba(0,200,150,0.3)" : "rgba(255,100,100,0.2)"
-                    }`,
-                  }}
-                >
-                  {h.kreditReached ? "✓ Kredit" : "✗ Kredit"}
-                </span>
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    padding: "3px 8px",
-                    borderRadius: 20,
-                    background: h.termineReached
-                      ? "rgba(192,132,252,0.15)"
-                      : "rgba(255,100,100,0.1)",
-                    color: h.termineReached ? "#C084FC" : "#FF8080",
-                    border: `1px solid ${
-                      h.termineReached ? "rgba(192,132,252,0.3)" : "rgba(255,100,100,0.2)"
-                    }`,
-                  }}
-                >
-                  {h.termineReached ? "✓ Termine" : "✗ Termine"}
-                </span>
+                {[
+                  { ok: h.kreditReached,  yes: "✓ Kredit",  no: "✗ Kredit",  okColor: C.success, okBg: C.successBg },
+                  { ok: h.termineReached, yes: "✓ Termine", no: "✗ Termine", okColor: C.purple,  okBg: C.purpleLight },
+                ].map(({ ok, yes, no, okColor, okBg }) => (
+                  <span key={yes} style={{
+                    fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 20,
+                    background: ok ? okBg : "#FDECEA",
+                    color: ok ? okColor : "#C62828",
+                    border: `1px solid ${ok ? okColor + "44" : "#EF9A9A"}`,
+                  }}>{ok ? yes : no}</span>
+                ))}
               </div>
             </div>
-            <div style={{ display: "flex", gap: 20 }}>
-              <div style={{ fontSize: 12, color: "#4A6490" }}>
-                Kredit:{" "}
-                <span style={{ color: "#94B8E8", fontWeight: 600 }}>
-                  {new Intl.NumberFormat("de-DE", {
-                    style: "currency",
-                    currency: "EUR",
-                    maximumFractionDigits: 0,
-                  }).format(h.kredit)}
-                </span>
-                <span style={{ color: h.kreditReached ? "#00C896" : "#4A6490" }}>
-                  {" "}
-                  ({Math.round((h.kredit / h.kreditGoal) * 100)}%)
-                </span>
-              </div>
-              <div style={{ fontSize: 12, color: "#4A6490" }}>
-                Angebote:{" "}
-                <span style={{ color: "#94B8E8", fontWeight: 600 }}>{h.angebote}</span>
-              </div>
-              <div style={{ fontSize: 12, color: "#4A6490" }}>
-                Termine:{" "}
-                <span style={{ color: "#94B8E8", fontWeight: 600 }}>
-                  {h.termine}/{h.termineGoal}
-                </span>
-              </div>
+            <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+              {[
+                { label: "Kredit",   val: new Intl.NumberFormat("de-DE",{style:"currency",currency:"EUR",maximumFractionDigits:0}).format(h.kredit) + ` (${Math.round((h.kredit/h.kreditGoal)*100)}%)` },
+                { label: "Angebote", val: h.angebote },
+                { label: "Termine",  val: `${h.termine}/${h.termineGoal}` },
+              ].map(({ label, val }) => (
+                <div key={label} style={{ fontSize: 12, color: C.textMuted }}>
+                  {label}: <span style={{ color: C.textSub, fontWeight: 600 }}>{val}</span>
+                </div>
+              ))}
             </div>
-            <div
-              style={{ height: 4, background: "#0A1628", borderRadius: 2, overflow: "hidden" }}
-            >
-              <div
-                style={{
-                  height: "100%",
-                  width: `${Math.min((h.kredit / h.kreditGoal) * 100, 100)}%`,
-                  background: h.kreditReached
-                    ? "linear-gradient(90deg,#00C896,#00FFC0)"
-                    : "linear-gradient(90deg,#1E5FA0,#2A7FCC)",
-                  borderRadius: 2,
-                }}
-              />
+            <div style={{ height: 4, background: C.bgInput, borderRadius: 2, overflow: "hidden" }}>
+              <div style={{
+                height: "100%",
+                width: `${Math.min((h.kredit / h.kreditGoal) * 100, 100)}%`,
+                background: h.kreditReached ? C.success : C.red,
+                borderRadius: 2,
+              }} />
             </div>
           </div>
         ))}
@@ -426,80 +302,79 @@ function HistoryView({ history }) {
 
 const GlobalStyle = () => (
   <style>{`
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: Arial, Helvetica, system-ui, -apple-system, sans-serif; }
     @keyframes slideUp {
-      from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+      from { opacity: 0; transform: translateX(-50%) translateY(18px); }
       to   { opacity: 1; transform: translateX(-50%) translateY(0); }
     }
-    button:hover { filter: brightness(1.1); }
+    button { font-family: Arial, Helvetica, system-ui, -apple-system, sans-serif; }
+    input  { font-family: Arial, Helvetica, system-ui, -apple-system, sans-serif; }
+    input::placeholder { color: #BBBBBB; }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: ${C.bgInput}; }
+    ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 2px; }
   `}</style>
 );
 
 // ---------- Main App ----------
 
 export default function App() {
-  const [nickname, setNickname] = useState("");
-  const [nickInput, setNickInput] = useState("");
-  const [entries, setEntries] = useState([]);
-  const [amountInput, setAmountInput] = useState("");
-  const [inputError, setInputError] = useState("");
-  const [showConfetti, setShowConfetti] = useState(false);
+  const [nickname, setNickname]               = useState("");
+  const [nickInput, setNickInput]             = useState("");
+  const [entries, setEntries]                 = useState([]);
+  const [amountInput, setAmountInput]         = useState("");
+  const [inputError, setInputError]           = useState("");
+  const [showConfetti, setShowConfetti]       = useState(false);
   const [reachedMilestones, setReachedMilestones] = useState(new Set());
-  const [pulsingMilestone, setPulsingMilestone] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [resetConfirm, setResetConfirm] = useState(false);
-  const [praise, setPraise] = useState(null);
-  const praiseTimer = useRef(null);
-  const [angebote, setAngebote] = useState(0);
-  const [termine, setTermine] = useState(0);
-  const [history, setHistory] = useState([]);
-  const [activeTab, setActiveTab] = useState("dashboard");
-  const prevPct = useRef(0);
+  const [pulsingMilestone, setPulsingMilestone]   = useState(null);
+  const [loading, setLoading]                 = useState(true);
+  const [resetConfirm, setResetConfirm]       = useState(false);
+  const [praise, setPraise]                   = useState(null);
+  const praiseTimer                           = useRef(null);
+  const [angebote, setAngebote]               = useState(0);
+  const [termine, setTermine]                 = useState(0);
+  const [history, setHistory]                 = useState([]);
+  const [activeTab, setActiveTab]             = useState("dashboard");
+  const prevPct                               = useRef(0);
 
   // Load from localStorage on mount
   useEffect(() => {
     const thisMonday = getMonday().getTime();
 
-    // Load current entries
-    const rawEntries = lsGet(STORAGE_KEY_ENTRIES);
-    const loadedEntries = rawEntries ? JSON.parse(rawEntries) : [];
+    const rawEntries  = lsGet(STORAGE_KEY_ENTRIES);
+    let   loadedEntries = rawEntries ? JSON.parse(rawEntries) : [];
 
-    const rawAngebote = lsGet(STORAGE_KEY_ANGEBOTE);
-    const loadedAngebote = rawAngebote ? parseInt(rawAngebote, 10) : 0;
+    const rawAngebote   = lsGet(STORAGE_KEY_ANGEBOTE);
+    let   loadedAngebote = rawAngebote ? parseInt(rawAngebote, 10) : 0;
 
-    const rawTermine = lsGet(STORAGE_KEY_TERMINE);
-    const loadedTermine = rawTermine ? parseInt(rawTermine, 10) : 0;
+    const rawTermine   = lsGet(STORAGE_KEY_TERMINE);
+    let   loadedTermine = rawTermine ? parseInt(rawTermine, 10) : 0;
 
-    const rawHistory = lsGet(STORAGE_KEY_HISTORY);
-    let loadedHistory = rawHistory ? JSON.parse(rawHistory) : [];
+    const rawHistory   = lsGet(STORAGE_KEY_HISTORY);
+    let   loadedHistory = rawHistory ? JSON.parse(rawHistory) : [];
 
-    // Auto-reset: if we crossed into a new week, archive last week
-    const storedWeek = lsGet(STORAGE_KEY_CURRENT_WEEK);
+    const storedWeek   = lsGet(STORAGE_KEY_CURRENT_WEEK);
     const storedWeekMs = storedWeek ? parseInt(storedWeek, 10) : null;
 
+    // Auto-reset: new week detected
     if (storedWeekMs && storedWeekMs < thisMonday) {
       const lastTotal = loadedEntries.reduce((s, e) => s + e.amount, 0);
       if (lastTotal > 0 || loadedAngebote > 0 || loadedTermine > 0) {
         const snapshot = {
           weekKey: storedWeekMs,
           label: getKWLabel(new Date(storedWeekMs)),
-          kredit: lastTotal,
-          kreditGoal: WEEKLY_GOAL,
-          kreditReached: lastTotal >= WEEKLY_GOAL,
+          kredit: lastTotal, kreditGoal: WEEKLY_GOAL, kreditReached: lastTotal >= WEEKLY_GOAL,
           angebote: loadedAngebote,
-          termine: loadedTermine,
-          termineGoal: TERMINE_GOAL,
-          termineReached: loadedTermine >= TERMINE_GOAL,
+          termine: loadedTermine, termineGoal: TERMINE_GOAL, termineReached: loadedTermine >= TERMINE_GOAL,
         };
         loadedHistory = [snapshot, ...loadedHistory].slice(0, 52);
         lsSet(STORAGE_KEY_HISTORY, JSON.stringify(loadedHistory));
       }
-      // Clear current week
       lsSet(STORAGE_KEY_ENTRIES, JSON.stringify([]));
       lsSet(STORAGE_KEY_ANGEBOTE, "0");
       lsSet(STORAGE_KEY_TERMINE, "0");
-      setEntries([]);
-      setAngebote(0);
-      setTermine(0);
+      setEntries([]); setAngebote(0); setTermine(0);
     } else {
       setEntries(loadedEntries);
       setAngebote(loadedAngebote);
@@ -514,8 +389,8 @@ export default function App() {
     setLoading(false);
   }, []);
 
-  const total = entries.reduce((s, e) => s + e.amount, 0);
-  const pct = Math.min((total / WEEKLY_GOAL) * 100, 100);
+  const total     = entries.reduce((s, e) => s + e.amount, 0);
+  const pct       = Math.min((total / WEEKLY_GOAL) * 100, 100);
   const remaining = Math.max(WEEKLY_GOAL - total, 0);
 
   // Milestone & confetti detection
@@ -526,10 +401,7 @@ export default function App() {
         setReachedMilestones((prev) => new Set([...prev, m]));
         setPulsingMilestone(m);
         setTimeout(() => setPulsingMilestone(null), 2000);
-        if (m === 100) {
-          setShowConfetti(true);
-          setTimeout(() => setShowConfetti(false), 5000);
-        }
+        if (m === 100) { setShowConfetti(true); setTimeout(() => setShowConfetti(false), 5000); }
       }
     });
     prevPct.current = pct;
@@ -548,12 +420,12 @@ export default function App() {
       return;
     }
     setInputError("");
-    const newEntry = { amount: val, ts: Date.now() };
+    const newEntry      = { amount: val, ts: Date.now() };
     const updatedEntries = [...entries, newEntry];
     saveEntries(updatedEntries);
     setAmountInput("");
 
-    const newTotal = updatedEntries.reduce((s, e) => s + e.amount, 0);
+    const newTotal       = updatedEntries.reduce((s, e) => s + e.amount, 0);
     const justReachedGoal = newTotal >= WEEKLY_GOAL && total < WEEKLY_GOAL;
     const p = { ...getRandomPraise(justReachedGoal), isGoal: justReachedGoal };
     setPraise(p);
@@ -561,94 +433,65 @@ export default function App() {
     praiseTimer.current = setTimeout(() => setPraise(null), justReachedGoal ? 6000 : 3500);
   };
 
-  const handleAddAngebot = () => {
-    const next = angebote + 1;
-    setAngebote(next);
-    lsSet(STORAGE_KEY_ANGEBOTE, String(next));
-  };
-
-  const handleRemoveAngebot = () => {
-    const next = Math.max(0, angebote - 1);
-    setAngebote(next);
-    lsSet(STORAGE_KEY_ANGEBOTE, String(next));
-  };
-
-  const handleAddTermin = () => {
-    const next = termine + 1;
-    setTermine(next);
-    lsSet(STORAGE_KEY_TERMINE, String(next));
-  };
-
-  const handleRemoveTermin = () => {
-    const next = Math.max(0, termine - 1);
-    setTermine(next);
-    lsSet(STORAGE_KEY_TERMINE, String(next));
-  };
+  const handleAddAngebot    = () => { const n = angebote + 1;             setAngebote(n); lsSet(STORAGE_KEY_ANGEBOTE, String(n)); };
+  const handleRemoveAngebot = () => { const n = Math.max(0, angebote - 1); setAngebote(n); lsSet(STORAGE_KEY_ANGEBOTE, String(n)); };
+  const handleAddTermin     = () => { const n = termine + 1;              setTermine(n);  lsSet(STORAGE_KEY_TERMINE, String(n)); };
+  const handleRemoveTermin  = () => { const n = Math.max(0, termine - 1);  setTermine(n);  lsSet(STORAGE_KEY_TERMINE, String(n)); };
 
   const handleReset = () => {
     const thisMonday = getMonday().getTime();
-
     if (total > 0 || angebote > 0 || termine > 0) {
       const rawHistory = lsGet(STORAGE_KEY_HISTORY);
-      const freshHist = rawHistory ? JSON.parse(rawHistory) : [];
-      const alreadyArchived = freshHist.some((h) => h.weekKey === thisMonday);
-      if (!alreadyArchived) {
+      const freshHist  = rawHistory ? JSON.parse(rawHistory) : [];
+      if (!freshHist.some((h) => h.weekKey === thisMonday)) {
         const snapshot = {
-          weekKey: thisMonday,
-          label: getKWLabel(new Date(thisMonday)),
-          kredit: total,
-          kreditGoal: WEEKLY_GOAL,
-          kreditReached: total >= WEEKLY_GOAL,
-          angebote,
-          termine,
-          termineGoal: TERMINE_GOAL,
-          termineReached: termine >= TERMINE_GOAL,
+          weekKey: thisMonday, label: getKWLabel(new Date(thisMonday)),
+          kredit: total, kreditGoal: WEEKLY_GOAL, kreditReached: total >= WEEKLY_GOAL,
+          angebote, termine, termineGoal: TERMINE_GOAL, termineReached: termine >= TERMINE_GOAL,
         };
         const newHist = [snapshot, ...freshHist].slice(0, 52);
         lsSet(STORAGE_KEY_HISTORY, JSON.stringify(newHist));
         setHistory(newHist);
       }
     }
-
     lsSet(STORAGE_KEY_ENTRIES, JSON.stringify([]));
     lsSet(STORAGE_KEY_ANGEBOTE, "0");
     lsSet(STORAGE_KEY_TERMINE, "0");
     lsSet(STORAGE_KEY_CURRENT_WEEK, String(thisMonday));
-    setEntries([]);
-    setAngebote(0);
-    setTermine(0);
-    setReachedMilestones(new Set());
-    setShowConfetti(false);
-    setResetConfirm(false);
+    setEntries([]); setAngebote(0); setTermine(0);
+    setReachedMilestones(new Set()); setShowConfetti(false); setResetConfirm(false);
     prevPct.current = 0;
   };
 
-  // Login screen
+  // ---------- Login Screen ----------
   if (!nickname) {
     return (
       <div style={styles.screen}>
+        <GlobalStyle />
         <div style={styles.loginCard}>
-          <div style={styles.bankIcon}>🏦</div>
-          <h1 style={styles.loginTitle}>Team-Kredit-Tracker</h1>
+          {/* Sparkassen-Logo-Bereich */}
+          <div style={{
+            width: 64, height: 64, borderRadius: 16,
+            background: C.red,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 30, marginBottom: 20, margin: "0 auto 20px",
+            boxShadow: `0 4px 16px rgba(226,0,26,0.25)`,
+          }}>🏦</div>
+          <h1 style={styles.loginTitle}>Fu-Fighters</h1>
           <p style={styles.loginSub}>
-            Wähle einen anonymen Spitznamen für diese Session. Kein echter Name — nur für dich.
+            Wähle einen anonymen Spitznamen für diese Session.<br />
+            Kein echter Name — nur für dich.
           </p>
           <input
-            style={styles.input}
+            style={styles.loginInput}
             placeholder="z.B. Falke, Titan, Blitz …"
             value={nickInput}
             onChange={(e) => setNickInput(e.target.value)}
-            onKeyDown={(e) =>
-              e.key === "Enter" && nickInput.trim() && setNickname(nickInput.trim())
-            }
+            onKeyDown={(e) => e.key === "Enter" && nickInput.trim() && setNickname(nickInput.trim())}
             maxLength={20}
           />
           <button
-            style={{
-              ...styles.btn,
-              opacity: nickInput.trim() ? 1 : 0.5,
-              cursor: nickInput.trim() ? "pointer" : "not-allowed",
-            }}
+            style={{ ...styles.btnPrimary, opacity: nickInput.trim() ? 1 : 0.5, cursor: nickInput.trim() ? "pointer" : "not-allowed", width: "100%" }}
             onClick={() => nickInput.trim() && setNickname(nickInput.trim())}
           >
             Beitreten
@@ -658,59 +501,34 @@ export default function App() {
     );
   }
 
+  // ---------- Main App ----------
   return (
     <div style={styles.screen}>
       <GlobalStyle />
       {showConfetti && <ConfettiCanvas />}
+
+      {/* Toast / Praise */}
       {praise && (
-        <div
-          style={{
-            position: "fixed",
-            bottom: 32,
-            left: "50%",
-            transform: "translateX(-50%)",
-            background: praise.isGoal
-              ? "linear-gradient(135deg, #1A2A00, #243800)"
-              : "linear-gradient(135deg, #0D2A1F, #0F3828)",
-            border: praise.isGoal ? "1.5px solid #FFD700" : "1px solid #00C896",
-            borderRadius: praise.isGoal ? 18 : 14,
-            padding: praise.isGoal ? "18px 30px" : "14px 24px",
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            boxShadow: praise.isGoal
-              ? "0 8px 40px rgba(255,215,0,0.3), 0 2px 8px rgba(0,0,0,0.5)"
-              : "0 8px 32px rgba(0,200,150,0.25), 0 2px 8px rgba(0,0,0,0.4)",
-            zIndex: 10000,
-            animation: "slideUp 0.35s cubic-bezier(0.34,1.56,0.64,1)",
-            whiteSpace: "nowrap",
-            maxWidth: "90vw",
-          }}
-        >
-          <span style={{ fontSize: praise.isGoal ? 34 : 26 }}>{praise.emoji}</span>
+        <div style={{
+          position: "fixed", bottom: 28, left: "50%",
+          transform: "translateX(-50%)",
+          background: praise.isGoal ? "#FFF8E1" : C.white,
+          border: `2px solid ${praise.isGoal ? "#FFC107" : C.red}`,
+          borderRadius: 12, padding: praise.isGoal ? "16px 28px" : "12px 22px",
+          display: "flex", alignItems: "center", gap: 12,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+          zIndex: 10000,
+          animation: "slideUp 0.35s cubic-bezier(0.34,1.56,0.64,1)",
+          whiteSpace: "nowrap", maxWidth: "90vw",
+        }}>
+          <span style={{ fontSize: praise.isGoal ? 32 : 24 }}>{praise.emoji}</span>
           <div>
             {praise.isGoal && (
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  color: "#FFD700",
-                  letterSpacing: "0.12em",
-                  marginBottom: 3,
-                  textTransform: "uppercase",
-                }}
-              >
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#E65100", letterSpacing: "0.1em", marginBottom: 2, textTransform: "uppercase" }}>
                 Wochenziel erreicht
               </div>
             )}
-            <span
-              style={{
-                fontSize: praise.isGoal ? 16 : 15,
-                fontWeight: 700,
-                color: praise.isGoal ? "#FFFDE0" : "#E0FFF5",
-                letterSpacing: "-0.1px",
-              }}
-            >
+            <span style={{ fontSize: praise.isGoal ? 15 : 14, fontWeight: 700, color: C.text }}>
               {praise.text}
             </span>
           </div>
@@ -718,11 +536,17 @@ export default function App() {
       )}
 
       <div style={styles.container}>
-        {/* Header */}
+
+        {/* ── Header ── */}
         <div style={styles.header}>
-          <div>
-            <div style={styles.eyebrow}>WOCHENZIEL 2025</div>
-            <h1 style={styles.title}>Team-Kredit-Tracker</h1>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{
+              width: 40, height: 40, borderRadius: 10,
+              background: C.red, display: "flex", alignItems: "center",
+              justifyContent: "center", fontSize: 20, flexShrink: 0,
+              boxShadow: `0 2px 8px rgba(226,0,26,0.3)`,
+            }}>🏦</div>
+            <h1 style={styles.title}>Fu-Fighters</h1>
           </div>
           <div style={styles.nicknameTag}>
             <span style={styles.dot} />
@@ -730,329 +554,212 @@ export default function App() {
           </div>
         </div>
 
-        {/* Tab Nav */}
-        <div
-          style={{
-            display: "flex",
-            background: "#0A1628",
-            borderRadius: 12,
-            padding: 4,
-            border: "1px solid #1E3A6E",
-          }}
-        >
-          {[
-            ["dashboard", "📊 Dashboard"],
-            ["history", "📈 Verlauf"],
-          ].map(([tab, label]) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              style={{
-                flex: 1,
-                border: "none",
-                borderRadius: 9,
-                padding: "9px 0",
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: "pointer",
-                fontFamily: "inherit",
-                background: activeTab === tab ? "#132040" : "transparent",
-                color: activeTab === tab ? "#FFFFFF" : "#4A6490",
-                boxShadow: activeTab === tab ? "0 1px 4px rgba(0,0,0,0.4)" : "none",
-                transition: "all 0.2s",
-              }}
-            >
-              {label}
-            </button>
+        {/* ── Tab Nav ── */}
+        <div style={{
+          display: "flex", background: C.bgInput,
+          borderRadius: 10, padding: 3,
+          border: `1px solid ${C.border}`,
+        }}>
+          {[["dashboard", "📊 Dashboard"], ["history", "📈 Verlauf"]].map(([tab, label]) => (
+            <button key={tab} onClick={() => setActiveTab(tab)} style={{
+              flex: 1, border: "none", borderRadius: 8, padding: "9px 0",
+              fontSize: 13, fontWeight: 700, cursor: "pointer",
+              background: activeTab === tab ? C.white : "transparent",
+              color: activeTab === tab ? C.red : C.textMuted,
+              boxShadow: activeTab === tab ? "0 1px 4px rgba(0,0,0,0.1)" : "none",
+              transition: "all 0.2s",
+            }}>{label}</button>
           ))}
         </div>
 
+        {/* ── History Tab ── */}
         {activeTab === "history" ? (
           <HistoryView history={history} />
         ) : (
           <>
-            {/* Goal Card */}
+            {/* ── Ziel-Karte ── */}
             <div style={styles.card}>
-              <div style={styles.goalRow}>
+              {/* Betrag-Zeile */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 18 }}>
                 <div>
                   <div style={styles.label}>Gesamt eingetragen</div>
-                  <div style={styles.bigNumber}>{formatEuro(total)}</div>
+                  <div style={{ fontSize: 32, fontWeight: 800, color: C.text, lineHeight: 1, letterSpacing: "-0.5px" }}>
+                    {formatEuro(total)}
+                  </div>
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <div style={styles.label}>Wochenziel</div>
-                  <div style={{ ...styles.bigNumber, color: "#4A9EFF" }}>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: C.red, lineHeight: 1 }}>
                     {formatEuro(WEEKLY_GOAL)}
                   </div>
                 </div>
               </div>
 
-              {/* Progress bar */}
+              {/* Progress Bar */}
               <div style={styles.barWrap}>
-                <div
-                  style={{
-                    ...styles.barFill,
-                    width: `${pct}%`,
-                    background:
-                      pct >= 100
-                        ? "linear-gradient(90deg, #00C896, #00FFC0)"
-                        : "linear-gradient(90deg, #0077CC, #00C896)",
-                  }}
-                >
-                  {pct > 8 && <span style={styles.barLabel}>{Math.round(pct)}%</span>}
-                  <div style={styles.barGlow} />
+                <div style={{
+                  ...styles.barFill,
+                  width: `${pct}%`,
+                  background: pct >= 100 ? C.success : C.red,
+                }}>
+                  {pct > 8 && (
+                    <span style={{ fontSize: 10, fontWeight: 700, color: C.white, paddingRight: 8, letterSpacing: "0.04em" }}>
+                      {Math.round(pct)}%
+                    </span>
+                  )}
                 </div>
               </div>
 
               {/* Milestones */}
-              <div style={styles.milestoneRow}>
+              <div style={{ display: "flex", justifyContent: "space-around", marginBottom: 14, padding: "0 4px" }}>
                 {MILESTONES.map((m) => (
-                  <MilestoneBadge
-                    key={m}
-                    milestone={m}
-                    achieved={reachedMilestones.has(m)}
-                    pulsing={pulsingMilestone === m}
-                  />
+                  <MilestoneBadge key={m} milestone={m} achieved={reachedMilestones.has(m)} pulsing={pulsingMilestone === m} />
                 ))}
               </div>
 
-              {/* Status text */}
-              <div style={pct >= 100 ? styles.statusSuccess : styles.statusNeutral}>
+              {/* Status */}
+              <div style={{
+                textAlign: "center", fontSize: pct >= 100 ? 17 : 14,
+                fontWeight: pct >= 100 ? 700 : 500,
+                color: pct >= 100 ? C.success : C.textSub,
+                marginBottom: 12,
+              }}>
                 {pct >= 100 ? "🎉 Ziel erreicht!" : `Noch ${formatEuro(remaining)} bis zum Ziel`}
               </div>
 
-              {/* Motivation */}
-              <div
-                style={{
-                  ...styles.motivationBanner,
-                  borderLeft:
-                    pct >= 100
-                      ? "3px solid #FFD700"
-                      : pct >= 67
-                      ? "3px solid #00C896"
-                      : "3px solid #4A9EFF",
-                }}
-              >
-                <span
-                  style={{
-                    ...styles.motivationText,
-                    color:
-                      pct >= 100 ? "#FFFDE0" : pct >= 67 ? "#B8FFE8" : "#CBD5E1",
-                  }}
-                >
+              {/* Motivation Banner */}
+              <div style={{
+                background: pct >= 100 ? C.successBg : C.redLight,
+                border: `1px solid ${pct >= 100 ? "#A5D6A7" : "#FFCDD2"}`,
+                borderLeft: `4px solid ${pct >= 100 ? C.success : C.red}`,
+                borderRadius: 8, padding: "10px 14px",
+              }}>
+                <span style={{ fontSize: 13, color: pct >= 100 ? C.success : C.red, fontWeight: 600 }}>
                   {getMotivation(pct)}
                 </span>
               </div>
             </div>
 
-            {/* Input Card */}
+            {/* ── Betrag eintragen ── */}
             <div style={styles.card}>
               <div style={styles.cardTitle}>Kreditbetrag eintragen</div>
-              <div style={styles.inputRow}>
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                 <div style={{ position: "relative", flex: 1 }}>
-                  <span style={styles.euroSign}>€</span>
+                  <span style={{
+                    position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
+                    color: C.textMuted, fontSize: 15, fontWeight: 600, pointerEvents: "none",
+                  }}>€</span>
                   <input
-                    style={{ ...styles.input, paddingLeft: 32, margin: 0 }}
+                    style={{ ...styles.input, paddingLeft: 30 }}
                     placeholder="0"
                     value={amountInput}
-                    onChange={(e) => {
-                      setInputError("");
-                      setAmountInput(e.target.value);
-                    }}
+                    onChange={(e) => { setInputError(""); setAmountInput(e.target.value); }}
                     onKeyDown={(e) => e.key === "Enter" && handleAddEntry()}
                     type="text"
                     inputMode="decimal"
                   />
                 </div>
-                <button style={styles.btn} onClick={handleAddEntry}>
-                  Eintragen
-                </button>
+                <button style={styles.btnPrimary} onClick={handleAddEntry}>Eintragen</button>
               </div>
-              {inputError && <div style={styles.error}>{inputError}</div>}
-              <p style={styles.hint}>
+              {inputError && <div style={{ color: C.red, fontSize: 12, marginTop: 6, fontWeight: 600 }}>{inputError}</div>}
+              <p style={{ fontSize: 11, color: C.textMuted, margin: "10px 0 0", lineHeight: 1.5 }}>
                 Dein Eintrag erscheint anonym in der Teamliste — kein Name, kein Profil.
               </p>
             </div>
 
-            {/* Angebote & Termine */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            {/* ── Angebote & Termine ── */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
               {/* Angebote */}
               <div style={styles.card}>
-                <div
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: "#4A9EFF",
-                    letterSpacing: "0.1em",
-                    textTransform: "uppercase",
-                    marginBottom: 10,
-                  }}
-                >
+                <div style={{ fontSize: 10, fontWeight: 700, color: C.blue, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>
                   Angebote
                 </div>
-                <div
-                  style={{
-                    fontSize: 38,
-                    fontWeight: 800,
-                    color: "#FFFFFF",
-                    lineHeight: 1,
-                    marginBottom: 6,
-                  }}
-                >
-                  {angebote}
-                </div>
-                <div style={{ fontSize: 11, color: "#4A6490", marginBottom: 14 }}>
-                  erstellt diese Woche
-                </div>
+                <div style={{ fontSize: 42, fontWeight: 800, color: C.text, lineHeight: 1, marginBottom: 4 }}>{angebote}</div>
+                <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 14 }}>erstellt diese Woche</div>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <button onClick={handleRemoveAngebot} style={styles.counterBtn}>
-                    −
-                  </button>
-                  <button
-                    onClick={handleAddAngebot}
-                    style={{ ...styles.counterBtn, ...styles.counterBtnAdd }}
-                  >
-                    +
-                  </button>
+                  <button onClick={handleRemoveAngebot} style={styles.counterBtn}>−</button>
+                  <button onClick={handleAddAngebot}    style={{ ...styles.counterBtn, background: C.blue, color: C.white, border: "none" }}>+</button>
                 </div>
               </div>
 
               {/* Termine */}
               <div style={styles.card}>
-                <div
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: "#C084FC",
-                    letterSpacing: "0.1em",
-                    textTransform: "uppercase",
-                    marginBottom: 10,
-                  }}
-                >
+                <div style={{ fontSize: 10, fontWeight: 700, color: C.purple, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>
                   Termine
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "baseline",
-                    gap: 6,
-                    marginBottom: 6,
-                  }}
-                >
-                  <span
-                    style={{ fontSize: 38, fontWeight: 800, color: "#FFFFFF", lineHeight: 1 }}
-                  >
-                    {termine}
-                  </span>
-                  <span style={{ fontSize: 13, color: "#4A6490", fontWeight: 600 }}>
-                    / {TERMINE_GOAL}
-                  </span>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 4 }}>
+                  <span style={{ fontSize: 42, fontWeight: 800, color: C.text, lineHeight: 1 }}>{termine}</span>
+                  <span style={{ fontSize: 13, color: C.textMuted, fontWeight: 600 }}>/ {TERMINE_GOAL}</span>
                 </div>
-                <div
-                  style={{
-                    height: 5,
-                    background: "#0A1628",
-                    borderRadius: 3,
-                    marginBottom: 6,
-                    overflow: "hidden",
-                    border: "1px solid #1E3A6E",
-                  }}
-                >
-                  <div
-                    style={{
-                      height: "100%",
-                      borderRadius: 3,
-                      width: `${Math.min((termine / TERMINE_GOAL) * 100, 100)}%`,
-                      background:
-                        termine >= TERMINE_GOAL
-                          ? "linear-gradient(90deg,#C084FC,#A855F7)"
-                          : "linear-gradient(90deg,#7C3AED,#C084FC)",
-                      transition: "width 0.5s cubic-bezier(0.4,0,0.2,1)",
-                    }}
-                  />
+                <div style={{ height: 5, background: C.bgInput, borderRadius: 3, marginBottom: 6, overflow: "hidden", border: `1px solid ${C.border}` }}>
+                  <div style={{
+                    height: "100%", borderRadius: 3,
+                    width: `${Math.min((termine / TERMINE_GOAL) * 100, 100)}%`,
+                    background: termine >= TERMINE_GOAL ? C.purple : "#9C6FCC",
+                    transition: "width 0.5s ease",
+                  }} />
                 </div>
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: termine >= TERMINE_GOAL ? "#C084FC" : "#4A6490",
-                    marginBottom: 14,
-                    fontWeight: termine >= TERMINE_GOAL ? 700 : 400,
-                  }}
-                >
-                  {termine >= TERMINE_GOAL
-                    ? "Ziel erreicht! 🎉"
-                    : `Noch ${TERMINE_GOAL - termine} bis Ziel`}
+                <div style={{ fontSize: 11, color: termine >= TERMINE_GOAL ? C.purple : C.textMuted, marginBottom: 14, fontWeight: termine >= TERMINE_GOAL ? 700 : 400 }}>
+                  {termine >= TERMINE_GOAL ? "Ziel erreicht! 🎉" : `Noch ${TERMINE_GOAL - termine} bis Ziel`}
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <button onClick={handleRemoveTermin} style={styles.counterBtn}>
-                    −
-                  </button>
-                  <button
-                    onClick={handleAddTermin}
-                    style={{
-                      ...styles.counterBtn,
-                      background: "linear-gradient(135deg,#7C3AED,#A855F7)",
-                      border: "none",
-                    }}
-                  >
-                    +
-                  </button>
+                  <button onClick={handleRemoveTermin} style={styles.counterBtn}>−</button>
+                  <button onClick={handleAddTermin}    style={{ ...styles.counterBtn, background: C.purple, color: C.white, border: "none" }}>+</button>
                 </div>
               </div>
             </div>
 
-            {/* Activity Log */}
+            {/* ── Teamaktivität ── */}
             <div style={styles.card}>
               <div style={styles.cardTitle}>
                 Teamaktivität
-                <span style={styles.entryCount}>{entries.length} Einträge</span>
+                <span style={{ fontSize: 12, fontWeight: 500, color: C.textMuted }}>{entries.length} Einträge</span>
               </div>
               {loading ? (
-                <div style={styles.emptyState}>Lade Teamdaten …</div>
+                <div style={styles.emptyState}>Lade Daten …</div>
               ) : entries.length === 0 ? (
-                <div style={styles.emptyState}>
-                  Noch keine Einträge — starte die Woche stark!
-                </div>
+                <div style={styles.emptyState}>Noch keine Einträge — starte die Woche stark!</div>
               ) : (
-                <div style={styles.activityList}>
-                  {[...entries]
-                    .sort((a, b) => b.ts - a.ts)
-                    .slice(0, 20)
-                    .map((e, i) => (
-                      <div key={i} style={styles.activityItem}>
-                        <div style={styles.activityDot} />
-                        <span style={styles.activityText}>
-                          Es wurden{" "}
-                          <strong style={{ color: "#00C896" }}>{formatEuro(e.amount)}</strong>{" "}
-                          eingetragen
-                        </span>
-                        <span style={styles.activityTime}>
-                          {new Date(e.ts).toLocaleTimeString("de-DE", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                      </div>
-                    ))}
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 260, overflowY: "auto" }}>
+                  {[...entries].sort((a, b) => b.ts - a.ts).slice(0, 20).map((e, i) => (
+                    <div key={i} style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      padding: "9px 12px", borderRadius: 8,
+                      background: C.bgInput, border: `1px solid ${C.border}`,
+                    }}>
+                      <div style={{ width: 6, height: 6, borderRadius: "50%", background: C.red, flexShrink: 0 }} />
+                      <span style={{ fontSize: 13, color: C.textSub, flex: 1 }}>
+                        Es wurden{" "}
+                        <strong style={{ color: C.red }}>{formatEuro(e.amount)}</strong>{" "}
+                        eingetragen
+                      </span>
+                      <span style={{ fontSize: 11, color: C.textMuted, fontVariantNumeric: "tabular-nums" }}>
+                        {new Date(e.ts).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
 
-            {/* Reset */}
-            <div style={styles.resetArea}>
+            {/* ── Reset ── */}
+            <div style={{ display: "flex", justifyContent: "center", paddingTop: 4 }}>
               {!resetConfirm ? (
                 <button style={styles.resetBtn} onClick={() => setResetConfirm(true)}>
                   ↺ Wöchentlicher Reset
                 </button>
               ) : (
-                <div style={styles.confirmBox}>
-                  <span style={{ color: "#CBD5E1", fontSize: 14 }}>
-                    Alle Einträge für das Team löschen?
-                  </span>
-                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                    <button style={styles.confirmYes} onClick={handleReset}>
+                <div style={{
+                  background: C.bgCard, border: `1px solid ${C.border}`,
+                  borderRadius: 12, padding: "18px 22px", textAlign: "center", width: "100%",
+                  boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+                }}>
+                  <span style={{ color: C.textSub, fontSize: 14 }}>Alle Einträge für das Team löschen?</span>
+                  <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "center" }}>
+                    <button style={{ ...styles.btnPrimary, background: "#C62828" }} onClick={handleReset}>
                       Ja, zurücksetzen
                     </button>
-                    <button style={styles.confirmNo} onClick={() => setResetConfirm(false)}>
+                    <button style={{ ...styles.btnSecondary }} onClick={() => setResetConfirm(false)}>
                       Abbrechen
                     </button>
                   </div>
@@ -1071,12 +778,12 @@ export default function App() {
 const styles = {
   screen: {
     minHeight: "100vh",
-    background: "linear-gradient(160deg, #0A1628 0%, #0F2244 60%, #0A1628 100%)",
-    fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+    background: C.bgPage,
+    fontFamily: "Arial, Helvetica, system-ui, -apple-system, sans-serif",
     display: "flex",
     justifyContent: "center",
     alignItems: "flex-start",
-    padding: "24px 16px 48px",
+    padding: "28px 16px 60px",
     boxSizing: "border-box",
   },
   container: {
@@ -1084,344 +791,191 @@ const styles = {
     maxWidth: 560,
     display: "flex",
     flexDirection: "column",
-    gap: 16,
+    gap: 14,
   },
   header: {
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "flex-end",
-    paddingBottom: 4,
-  },
-  eyebrow: {
-    fontSize: 10,
-    fontWeight: 700,
-    letterSpacing: "0.14em",
-    color: "#4A9EFF",
-    marginBottom: 4,
+    alignItems: "center",
+    paddingBottom: 6,
   },
   title: {
     margin: 0,
     fontSize: 22,
-    fontWeight: 700,
-    color: "#FFFFFF",
+    fontWeight: 800,
+    color: C.text,
     letterSpacing: "-0.3px",
   },
   nicknameTag: {
     display: "flex",
     alignItems: "center",
     gap: 6,
-    background: "#1A3560",
-    border: "1px solid #2A4A8A",
+    background: C.white,
+    border: `1px solid ${C.border}`,
     borderRadius: 20,
     padding: "5px 12px",
     fontSize: 13,
-    color: "#94B8E8",
-    fontWeight: 500,
+    color: C.textSub,
+    fontWeight: 600,
+    boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
   },
   dot: {
-    width: 7,
-    height: 7,
+    width: 7, height: 7,
     borderRadius: "50%",
-    background: "#00C896",
-    boxShadow: "0 0 6px #00C896",
+    background: C.red,
+    boxShadow: `0 0 5px ${C.red}88`,
   },
   card: {
-    background: "#132040",
-    border: "1px solid #1E3A6E",
-    borderRadius: 16,
-    padding: "22px 20px",
+    background: C.bgCard,
+    border: `1px solid ${C.border}`,
+    borderRadius: 14,
+    padding: "20px 18px",
+    boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
   },
   cardTitle: {
     fontSize: 13,
     fontWeight: 700,
-    color: "#94B8E8",
-    letterSpacing: "0.06em",
+    color: C.textSub,
+    letterSpacing: "0.04em",
     textTransform: "uppercase",
-    marginBottom: 16,
+    marginBottom: 14,
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  entryCount: {
-    fontSize: 12,
-    fontWeight: 500,
-    color: "#4A6490",
-    textTransform: "none",
-    letterSpacing: 0,
-  },
-  goalRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    marginBottom: 20,
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: 700,
+    color: C.textMuted,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    marginBottom: 12,
   },
   label: {
     fontSize: 11,
-    color: "#4A6490",
+    color: C.textMuted,
     fontWeight: 600,
     letterSpacing: "0.05em",
     textTransform: "uppercase",
     marginBottom: 4,
   },
-  bigNumber: {
-    fontSize: 28,
-    fontWeight: 800,
-    color: "#FFFFFF",
-    letterSpacing: "-0.5px",
-    lineHeight: 1,
-  },
   barWrap: {
-    height: 18,
-    background: "#0A1628",
-    borderRadius: 9,
+    height: 20,
+    background: C.bgInput,
+    borderRadius: 10,
     overflow: "hidden",
     marginBottom: 16,
-    position: "relative",
-    border: "1px solid #1E3A6E",
+    border: `1px solid ${C.border}`,
   },
   barFill: {
     height: "100%",
-    borderRadius: 9,
-    position: "relative",
+    borderRadius: 10,
     display: "flex",
     alignItems: "center",
     justifyContent: "flex-end",
     minWidth: 2,
     transition: "width 0.8s cubic-bezier(0.4,0,0.2,1)",
   },
-  barLabel: {
-    fontSize: 10,
-    fontWeight: 700,
-    color: "#fff",
-    paddingRight: 8,
-    letterSpacing: "0.04em",
-    textShadow: "0 1px 2px rgba(0,0,0,0.4)",
-  },
-  barGlow: {
-    position: "absolute",
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: 30,
-    background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.25))",
-    borderRadius: 9,
-  },
-  milestoneRow: {
-    display: "flex",
-    justifyContent: "space-around",
-    marginBottom: 16,
-    padding: "0 8px",
-  },
-  statusNeutral: {
-    textAlign: "center",
-    fontSize: 15,
-    color: "#94B8E8",
-    fontWeight: 500,
-    marginBottom: 12,
-  },
-  statusSuccess: {
-    textAlign: "center",
-    fontSize: 18,
-    color: "#00C896",
-    fontWeight: 700,
-    marginBottom: 12,
-    textShadow: "0 0 20px rgba(0,200,150,0.4)",
-  },
-  motivationBanner: {
-    background: "#0A1A35",
-    border: "1px solid #1E3A6E",
-    borderLeft: "3px solid #00C896",
-    borderRadius: 8,
-    padding: "10px 14px",
-  },
-  motivationText: {
-    fontSize: 13,
-    color: "#CBD5E1",
-    fontWeight: 500,
-    fontStyle: "italic",
-  },
-  inputRow: {
-    display: "flex",
-    gap: 10,
-    alignItems: "center",
-  },
-  euroSign: {
-    position: "absolute",
-    left: 11,
-    top: "50%",
-    transform: "translateY(-50%)",
-    color: "#4A6490",
-    fontSize: 15,
-    fontWeight: 600,
-    pointerEvents: "none",
-  },
   input: {
     width: "100%",
-    background: "#0A1628",
-    border: "1px solid #1E3A6E",
-    borderRadius: 10,
+    background: C.bgInput,
+    border: `1.5px solid ${C.border}`,
+    borderRadius: 9,
     padding: "11px 14px",
-    color: "#FFFFFF",
+    color: C.text,
     fontSize: 15,
     outline: "none",
     boxSizing: "border-box",
-    fontFamily: "inherit",
-    margin: "12px 0",
     transition: "border-color 0.2s",
   },
-  btn: {
-    background: "linear-gradient(135deg, #00A87A, #00C896)",
-    color: "#fff",
+  loginInput: {
+    width: "100%",
+    background: C.bgInput,
+    border: `1.5px solid ${C.border}`,
+    borderRadius: 9,
+    padding: "12px 14px",
+    color: C.text,
+    fontSize: 15,
+    outline: "none",
+    boxSizing: "border-box",
+    marginBottom: 14,
+    transition: "border-color 0.2s",
+  },
+  btnPrimary: {
+    background: C.red,
+    color: C.white,
     border: "none",
-    borderRadius: 10,
-    padding: "11px 20px",
+    borderRadius: 9,
+    padding: "11px 22px",
     fontSize: 14,
     fontWeight: 700,
     cursor: "pointer",
     whiteSpace: "nowrap",
     letterSpacing: "0.02em",
-    transition: "opacity 0.2s, transform 0.1s",
-    fontFamily: "inherit",
+    transition: "background 0.15s, transform 0.1s",
+    boxShadow: `0 2px 8px rgba(226,0,26,0.25)`,
   },
-  error: {
-    color: "#FF6B6B",
-    fontSize: 12,
-    marginTop: 6,
-    fontWeight: 500,
-  },
-  hint: {
-    fontSize: 11,
-    color: "#3A5278",
-    margin: "10px 0 0",
-    lineHeight: 1.5,
-  },
-  activityList: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 2,
-    maxHeight: 240,
-    overflowY: "auto",
-  },
-  activityItem: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "9px 12px",
-    borderRadius: 8,
-    background: "#0A1628",
-    border: "1px solid #1A3560",
-  },
-  activityDot: {
-    width: 6,
-    height: 6,
-    borderRadius: "50%",
-    background: "#00C896",
-    flexShrink: 0,
-  },
-  activityText: {
-    fontSize: 13,
-    color: "#94B8E8",
-    flex: 1,
-  },
-  activityTime: {
-    fontSize: 11,
-    color: "#3A5278",
-    fontVariantNumeric: "tabular-nums",
-  },
-  emptyState: {
-    textAlign: "center",
-    color: "#3A5278",
+  btnSecondary: {
+    background: C.bgInput,
+    color: C.textSub,
+    border: `1px solid ${C.border}`,
+    borderRadius: 9,
+    padding: "11px 18px",
     fontSize: 14,
-    padding: "20px 0",
-  },
-  resetArea: {
-    display: "flex",
-    justifyContent: "center",
-    paddingTop: 4,
-  },
-  resetBtn: {
-    background: "transparent",
-    border: "1px solid #1E3A6E",
-    borderRadius: 8,
-    color: "#3A5278",
-    fontSize: 13,
-    padding: "8px 18px",
-    cursor: "pointer",
-    fontFamily: "inherit",
-    transition: "color 0.2s, border-color 0.2s",
-  },
-  confirmBox: {
-    background: "#132040",
-    border: "1px solid #2A4A8A",
-    borderRadius: 12,
-    padding: "16px 20px",
-    textAlign: "center",
-    width: "100%",
-  },
-  confirmYes: {
-    background: "#C0392B",
-    color: "#fff",
-    border: "none",
-    borderRadius: 8,
-    padding: "8px 16px",
-    fontSize: 13,
     fontWeight: 600,
     cursor: "pointer",
-    fontFamily: "inherit",
-  },
-  confirmNo: {
-    background: "#1A3560",
-    color: "#94B8E8",
-    border: "none",
-    borderRadius: 8,
-    padding: "8px 16px",
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: "pointer",
-    fontFamily: "inherit",
+    transition: "background 0.15s",
   },
   counterBtn: {
     flex: 1,
-    background: "#0A1628",
-    border: "1px solid #1E3A6E",
+    background: C.bgInput,
+    border: `1px solid ${C.border}`,
     borderRadius: 8,
-    color: "#94B8E8",
+    color: C.textSub,
     fontSize: 18,
     fontWeight: 700,
-    padding: "6px 0",
+    padding: "7px 0",
     cursor: "pointer",
-    fontFamily: "inherit",
     transition: "background 0.15s",
   },
-  counterBtnAdd: {
-    background: "linear-gradient(135deg, #00A87A, #00C896)",
-    border: "none",
-    color: "#fff",
+  emptyState: {
+    textAlign: "center",
+    color: C.textMuted,
+    fontSize: 14,
+    padding: "20px 0",
+  },
+  resetBtn: {
+    background: "transparent",
+    border: `1px solid ${C.border}`,
+    borderRadius: 8,
+    color: C.textMuted,
+    fontSize: 13,
+    padding: "8px 18px",
+    cursor: "pointer",
+    transition: "color 0.2s, border-color 0.2s",
   },
   loginCard: {
-    background: "#132040",
-    border: "1px solid #1E3A6E",
-    borderRadius: 20,
+    background: C.bgCard,
+    border: `1px solid ${C.border}`,
+    borderRadius: 18,
     padding: "40px 32px",
     maxWidth: 400,
     width: "100%",
     textAlign: "center",
-  },
-  bankIcon: {
-    fontSize: 40,
-    marginBottom: 16,
+    boxShadow: "0 8px 32px rgba(0,0,0,0.08)",
+    marginTop: "10vh",
   },
   loginTitle: {
     margin: "0 0 10px",
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 800,
-    color: "#FFFFFF",
+    color: C.text,
     letterSpacing: "-0.3px",
   },
   loginSub: {
     fontSize: 14,
-    color: "#4A6490",
+    color: C.textMuted,
     lineHeight: 1.6,
-    marginBottom: 24,
+    marginBottom: 22,
   },
 };
