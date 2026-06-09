@@ -202,7 +202,9 @@ function MilestoneBadge({ milestone, achieved }) {
 }
 
 // ─── HistoryView ─────────────────────────────────────────────────────────────
-function HistoryView({ history }) {
+function HistoryView({ history, onClearHistory }) {
+  const [confirmClear, setConfirmClear] = useState(false);
+
   if (history.length === 0) {
     return (
       <div style={styles.card}>
@@ -261,8 +263,17 @@ function HistoryView({ history }) {
 
       {/* Week list */}
       <div style={{ ...styles.card, padding: 0, overflow: "hidden" }}>
-        <div style={{ padding: "14px 18px 10px", borderBottom: `1px solid ${C.border}` }}>
+        <div style={{
+          padding: "14px 18px 10px", borderBottom: `1px solid ${C.border}`,
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+        }}>
           <span style={styles.sectionLabel}>Wochendetails</span>
+          <button
+            style={styles.btnSecondary}
+            onClick={() => setConfirmClear(true)}
+          >
+            🗑 Verlauf löschen
+          </button>
         </div>
         {history.map((h, i) => (
           <div key={i} style={{
@@ -310,6 +321,52 @@ function HistoryView({ history }) {
           </div>
         ))}
       </div>
+
+      {/* ── Verlauf-löschen Bestätigungs-Modal ── */}
+      {confirmClear && (
+        <>
+          <div style={{
+            position: "fixed", inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            zIndex: 9998, animation: "fadeIn 0.2s ease",
+          }} onClick={() => setConfirmClear(false)} />
+          <div style={{
+            position: "fixed", top: "50%", left: "50%",
+            transform: "translate(-50%, -50%)",
+            background: C.white,
+            borderRadius: 14, overflow: "hidden",
+            boxShadow: "0 16px 48px rgba(0,0,0,0.3)",
+            zIndex: 9999,
+            width: "min(400px, 90vw)",
+            animation: "fadeIn 0.2s ease",
+          }}>
+            <div style={{ height: 4, background: C.red }} />
+            <div style={{ padding: "24px 24px 20px" }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: C.text, marginBottom: 10 }}>
+                Gesamten Verlauf löschen?
+              </div>
+              <div style={{ fontSize: 14, color: C.textSub, marginBottom: 22, lineHeight: 1.6 }}>
+                Alle Wochen-Einträge werden unwiderruflich gelöscht. Aktuelle Wochenwerte werden ebenfalls zurückgesetzt.<br />
+                <strong style={{ color: C.red }}>Diese Aktion kann nicht rückgängig gemacht werden.</strong>
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  style={{ ...styles.btnSecondary, flex: 1 }}
+                  onClick={() => setConfirmClear(false)}
+                >
+                  Abbrechen
+                </button>
+                <button
+                  style={{ ...styles.btnPrimary, flex: 1 }}
+                  onClick={() => { setConfirmClear(false); onClearHistory(); }}
+                >
+                  Löschen
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -481,6 +538,23 @@ export default function App() {
     prevPct.current = 0;
   };
 
+  const handleClearHistory = () => {
+    // Verlauf + alle aktuellen Wochenwerte löschen
+    lsSet(STORAGE_KEY_HISTORY,       JSON.stringify([]));
+    lsSet(STORAGE_KEY_ENTRIES,       JSON.stringify([]));
+    lsSet(STORAGE_KEY_ANGEBOTE,      "0");
+    lsSet(STORAGE_KEY_TERMINE,       "0");
+    lsSet(STORAGE_KEY_CURRENT_WEEK,  String(getMonday().getTime()));
+    setHistory([]);
+    setEntries([]); setAngebote(0); setTermine(0);
+    setReachedMilestones(new Set()); setShowConfetti(false);
+    prevPct.current = 0;
+    // Toast anzeigen
+    setPraise({ emoji: "🗑", text: "Verlauf wurde gelöscht.", isGoal: false, isInfo: true });
+    if (praiseTimer.current) clearTimeout(praiseTimer.current);
+    praiseTimer.current = setTimeout(() => setPraise(null), 3000);
+  };
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div style={styles.screen}>
@@ -510,7 +584,7 @@ export default function App() {
             minWidth: 280, maxWidth: "90vw",
           }}>
             {/* Roter Akzentstreifen oben */}
-            <div style={{ height: 4, background: praise.isGoal ? C.yellow : C.red }} />
+            <div style={{ height: 4, background: praise.isGoal ? C.yellow : praise.isInfo ? C.border : C.red }} />
             <div style={{ padding: "16px 22px", display: "flex", alignItems: "center", gap: 14 }}>
               <span style={{ fontSize: praise.isGoal ? 32 : 26 }}>{praise.emoji}</span>
               <div>
@@ -605,7 +679,7 @@ export default function App() {
 
         {/* ── History Tab ── */}
         {activeTab === "history" ? (
-          <HistoryView history={history} />
+          <HistoryView history={history} onClearHistory={handleClearHistory} />
         ) : (
           <>
             {/* ── Ziel-Karte ── */}
