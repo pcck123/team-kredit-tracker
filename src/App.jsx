@@ -6,8 +6,23 @@ const STORAGE_KEY_ANGEBOTE     = "kredit-tracker-angebote";
 const STORAGE_KEY_TERMINE      = "kredit-tracker-termine";
 const STORAGE_KEY_HISTORY      = "kredit-tracker-history";
 const STORAGE_KEY_CURRENT_WEEK = "kredit-tracker-current-week";
+const STORAGE_KEY_VERSION      = "kredit-tracker-version";
 const TERMINE_GOAL = 8;
 const MILESTONES   = [25, 50, 75, 100];
+
+// Versionsnummer erhöhen → löscht bei allen Nutzern beim nächsten Laden alle Daten
+const DATA_VERSION = "2";
+
+function clearAllStorage() {
+  [
+    STORAGE_KEY_ENTRIES,
+    STORAGE_KEY_ANGEBOTE,
+    STORAGE_KEY_TERMINE,
+    STORAGE_KEY_HISTORY,
+    STORAGE_KEY_CURRENT_WEEK,
+  ].forEach((key) => localStorage.removeItem(key));
+  lsSet(STORAGE_KEY_VERSION, DATA_VERSION);
+}
 
 // ─── Sparkassen Design Palette ────────────────────────────────────────────────
 const C = {
@@ -341,6 +356,11 @@ export default function App() {
 
   // ── Load from localStorage ─────────────────────────────────────────────────
   useEffect(() => {
+    // Versionscheck: alte Daten bei Versionsänderung automatisch löschen
+    if (lsGet(STORAGE_KEY_VERSION) !== DATA_VERSION) {
+      clearAllStorage();
+    }
+
     const thisMonday = getMonday().getTime();
 
     const rawEntries  = lsGet(STORAGE_KEY_ENTRIES);
