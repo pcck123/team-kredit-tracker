@@ -9,25 +9,25 @@ const STORAGE_KEY_CURRENT_WEEK = "kredit-tracker-current-week";
 const TERMINE_GOAL = 8;
 const MILESTONES = [25, 50, 75, 100];
 
-// ---------- Sparkassen Farbpalette ----------
+// ---------- Sparkassen Farbpalette (invertiert) ----------
 const C = {
-  red:        "#E2001A",   // Sparkassen-Rot
-  redDark:    "#B80016",   // Hover / Akzent
-  redLight:   "#FFF0F1",   // Sehr heller Rot-Ton für Backgrounds
-  white:      "#FFFFFF",
-  bgPage:     "#F0F2F4",   // Seiten-Hintergrund
-  bgCard:     "#FFFFFF",   // Karten-Hintergrund
-  bgInput:    "#F5F5F5",   // Input-Hintergrund
-  border:     "#E0E0E0",   // Trennlinien
-  text:       "#1A1A1A",   // Primärtext
-  textSub:    "#555555",   // Sekundärtext
-  textMuted:  "#999999",   // Hinweistext
-  success:    "#2E7D32",   // Grün für erreichte Ziele
-  successBg:  "#E8F5E9",
-  purple:     "#6D3C9E",   // Termine-Akzent
-  purpleLight:"#F3EDF9",
-  blue:       "#1565C0",   // Angebote-Akzent
-  blueLight:  "#E3F0FF",
+  red:        "#FFFFFF",   // Akzentfarbe → jetzt Weiß (ehem. Rot)
+  redDark:    "#F0F0F0",   // Hover → helles Weiß
+  redLight:   "#CC0016",   // Ehem. heller Rot-Ton → jetzt dunkleres Rot für Kontrast
+  white:      "#E2001A",   // Ehem. Weiß → jetzt Sparkassen-Rot
+  bgPage:     "#E2001A",   // Seiten-Hintergrund → Sparkassen-Rot
+  bgCard:     "#E2001A",   // Karten-Hintergrund → Sparkassen-Rot
+  bgInput:    "#CC0016",   // Inputs / Counter-Buttons → dunkleres Rot
+  border:     "rgba(255,255,255,0.25)",  // Trennlinien → halbtransparent Weiß
+  text:       "#FFFFFF",   // Primärtext → Weiß
+  textSub:    "#FFD5D9",   // Sekundärtext → helles Rosa-Weiß
+  textMuted:  "#FFAAB2",   // Hinweistext → gedämpftes Rosa
+  success:    "#00E676",   // Grün auf Rot → helles Grün
+  successBg:  "rgba(0,230,118,0.15)",
+  purple:     "#CE93D8",   // Termine → helles Lila auf Rot
+  purpleLight:"rgba(206,147,216,0.2)",
+  blue:       "#90CAF9",   // Angebote → helles Blau auf Rot
+  blueLight:  "rgba(144,202,249,0.2)",
 };
 
 const PRAISE_MESSAGES = [
@@ -122,7 +122,7 @@ function ConfettiCanvas() {
     const ctx = canvas.getContext("2d");
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-    const colors = [C.red, "#B80016", "#FFD700", "#FFFFFF", "#FF6680"];
+    const colors = ["#FFFFFF", "#FFD700", "#FFAAB2", "#FFE0E3", "#F0F0F0"];
     particles.current = Array.from({ length: 140 }, () => ({
       x: Math.random() * canvas.width,
       y: -20 - Math.random() * 100,
@@ -182,7 +182,7 @@ function MilestoneBadge({ milestone, achieved }) {
         display: "flex", alignItems: "center", justifyContent: "center",
         fontSize: 13, fontWeight: 700,
         color: achieved ? C.white : C.textMuted,
-        boxShadow: achieved ? `0 2px 10px rgba(226,0,26,0.35)` : "none",
+        boxShadow: achieved ? `0 2px 10px rgba(255,255,255,0.5)` : "none",
         transition: "all 0.4s",
       }}>
         {achieved ? "✓" : `${milestone}%`}
@@ -267,9 +267,9 @@ function HistoryView({ history }) {
                 ].map(({ ok, yes, no, okColor, okBg }) => (
                   <span key={yes} style={{
                     fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 20,
-                    background: ok ? okBg : "#FDECEA",
-                    color: ok ? okColor : "#C62828",
-                    border: `1px solid ${ok ? okColor + "44" : "#EF9A9A"}`,
+                    background: ok ? okBg : "rgba(0,0,0,0.25)",
+                    color: ok ? okColor : "#FFAAB2",
+                    border: `1px solid ${ok ? okColor + "66" : "rgba(255,255,255,0.3)"}`,
                   }}>{ok ? yes : no}</span>
                 ))}
               </div>
@@ -310,7 +310,7 @@ const GlobalStyle = () => (
     }
     button { font-family: Arial, Helvetica, system-ui, -apple-system, sans-serif; }
     input  { font-family: Arial, Helvetica, system-ui, -apple-system, sans-serif; }
-    input::placeholder { color: #BBBBBB; }
+    input::placeholder { color: rgba(255,255,255,0.45); }
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: ${C.bgInput}; }
     ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 2px; }
@@ -472,11 +472,11 @@ export default function App() {
         <div style={{
           position: "fixed", bottom: 28, left: "50%",
           transform: "translateX(-50%)",
-          background: praise.isGoal ? "#FFF8E1" : C.white,
-          border: `2px solid ${praise.isGoal ? "#FFC107" : C.red}`,
+          background: praise.isGoal ? "#CC0016" : "#B80016",
+          border: `2px solid ${praise.isGoal ? "#FFD700" : "rgba(255,255,255,0.6)"}`,
           borderRadius: 12, padding: praise.isGoal ? "16px 28px" : "12px 22px",
           display: "flex", alignItems: "center", gap: 12,
-          boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.35)",
           zIndex: 10000,
           animation: "slideUp 0.35s cubic-bezier(0.34,1.56,0.64,1)",
           whiteSpace: "nowrap", maxWidth: "90vw",
@@ -484,7 +484,7 @@ export default function App() {
           <span style={{ fontSize: praise.isGoal ? 32 : 24 }}>{praise.emoji}</span>
           <div>
             {praise.isGoal && (
-              <div style={{ fontSize: 10, fontWeight: 700, color: "#E65100", letterSpacing: "0.1em", marginBottom: 2, textTransform: "uppercase" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#FFD700", letterSpacing: "0.1em", marginBottom: 2, textTransform: "uppercase" }}>
                 Wochenziel erreicht
               </div>
             )}
@@ -504,7 +504,7 @@ export default function App() {
               width: 40, height: 40, borderRadius: 10,
               background: C.red, display: "flex", alignItems: "center",
               justifyContent: "center", fontSize: 20, flexShrink: 0,
-              boxShadow: `0 2px 8px rgba(226,0,26,0.3)`,
+              boxShadow: `0 2px 8px rgba(0,0,0,0.3)`,
             }}>🏦</div>
             <h1 style={styles.title}>Fu-Fighters</h1>
           </div>
@@ -522,7 +522,7 @@ export default function App() {
               fontSize: 13, fontWeight: 700, cursor: "pointer",
               background: activeTab === tab ? C.white : "transparent",
               color: activeTab === tab ? C.red : C.textMuted,
-              boxShadow: activeTab === tab ? "0 1px 4px rgba(0,0,0,0.1)" : "none",
+              boxShadow: activeTab === tab ? "0 1px 6px rgba(0,0,0,0.3)" : "none",
               transition: "all 0.2s",
             }}>{label}</button>
           ))}
@@ -586,7 +586,7 @@ export default function App() {
               {/* Motivation Banner */}
               <div style={{
                 background: pct >= 100 ? C.successBg : C.redLight,
-                border: `1px solid ${pct >= 100 ? "#A5D6A7" : "#FFCDD2"}`,
+                border: `1px solid ${pct >= 100 ? C.success + "88" : "rgba(255,255,255,0.3)"}`,
                 borderLeft: `4px solid ${pct >= 100 ? C.success : C.red}`,
                 borderRadius: 8, padding: "10px 14px",
               }}>
@@ -651,7 +651,7 @@ export default function App() {
                   <div style={{
                     height: "100%", borderRadius: 3,
                     width: `${Math.min((termine / TERMINE_GOAL) * 100, 100)}%`,
-                    background: termine >= TERMINE_GOAL ? C.purple : "#9C6FCC",
+                    background: termine >= TERMINE_GOAL ? C.purple : "rgba(206,147,216,0.7)",
                     transition: "width 0.5s ease",
                   }} />
                 </div>
@@ -708,11 +708,11 @@ export default function App() {
                 <div style={{
                   background: C.bgCard, border: `1px solid ${C.border}`,
                   borderRadius: 12, padding: "18px 22px", textAlign: "center", width: "100%",
-                  boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+                  boxShadow: "0 2px 12px rgba(0,0,0,0.3)",
                 }}>
                   <span style={{ color: C.textSub, fontSize: 14 }}>Alle Einträge für das Team löschen?</span>
                   <div style={{ display: "flex", gap: 8, marginTop: 12, justifyContent: "center" }}>
-                    <button style={{ ...styles.btnPrimary, background: "#C62828" }} onClick={handleReset}>
+                    <button style={{ ...styles.btnPrimary, background: "#FFFFFF", color: "#E2001A" }} onClick={handleReset}>
                       Ja, zurücksetzen
                     </button>
                     <button style={{ ...styles.btnSecondary }} onClick={() => setResetConfirm(false)}>
@@ -767,7 +767,7 @@ const styles = {
     border: `1px solid ${C.border}`,
     borderRadius: 14,
     padding: "20px 18px",
-    boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
+    boxShadow: "0 2px 10px rgba(0,0,0,0.2)",
   },
   cardTitle: {
     fontSize: 13,
@@ -837,7 +837,7 @@ const styles = {
     whiteSpace: "nowrap",
     letterSpacing: "0.02em",
     transition: "background 0.15s, transform 0.1s",
-    boxShadow: `0 2px 8px rgba(226,0,26,0.25)`,
+    boxShadow: `0 2px 8px rgba(0,0,0,0.25)`,
   },
   btnSecondary: {
     background: C.bgInput,
