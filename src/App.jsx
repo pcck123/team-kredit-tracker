@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const WEEKLY_GOAL = 62500;
 const STORAGE_KEY_ENTRIES = "kredit-tracker-entries";
@@ -320,8 +320,6 @@ const GlobalStyle = () => (
 // ---------- Main App ----------
 
 export default function App() {
-  const [nickname, setNickname]               = useState("");
-  const [nickInput, setNickInput]             = useState("");
   const [entries, setEntries]                 = useState([]);
   const [amountInput, setAmountInput]         = useState("");
   const [inputError, setInputError]           = useState("");
@@ -407,10 +405,10 @@ export default function App() {
     prevPct.current = pct;
   }, [pct, loading]);
 
-  const saveEntries = useCallback((newEntries) => {
+  const saveEntries = (newEntries) => {
     lsSet(STORAGE_KEY_ENTRIES, JSON.stringify(newEntries));
     setEntries(newEntries);
-  }, []);
+  };
 
   const handleAddEntry = () => {
     const raw = amountInput.replace(/\./g, "").replace(",", ".");
@@ -463,44 +461,6 @@ export default function App() {
     prevPct.current = 0;
   };
 
-  // ---------- Login Screen ----------
-  if (!nickname) {
-    return (
-      <div style={styles.screen}>
-        <GlobalStyle />
-        <div style={styles.loginCard}>
-          {/* Sparkassen-Logo-Bereich */}
-          <div style={{
-            width: 64, height: 64, borderRadius: 16,
-            background: C.red,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 30, marginBottom: 20, margin: "0 auto 20px",
-            boxShadow: `0 4px 16px rgba(226,0,26,0.25)`,
-          }}>🏦</div>
-          <h1 style={styles.loginTitle}>Fu-Fighters</h1>
-          <p style={styles.loginSub}>
-            Wähle einen anonymen Spitznamen für diese Session.<br />
-            Kein echter Name — nur für dich.
-          </p>
-          <input
-            style={styles.loginInput}
-            placeholder="z.B. Falke, Titan, Blitz …"
-            value={nickInput}
-            onChange={(e) => setNickInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && nickInput.trim() && setNickname(nickInput.trim())}
-            maxLength={20}
-          />
-          <button
-            style={{ ...styles.btnPrimary, opacity: nickInput.trim() ? 1 : 0.5, cursor: nickInput.trim() ? "pointer" : "not-allowed", width: "100%" }}
-            onClick={() => nickInput.trim() && setNickname(nickInput.trim())}
-          >
-            Beitreten
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   // ---------- Main App ----------
   return (
     <div style={styles.screen}>
@@ -547,10 +507,6 @@ export default function App() {
               boxShadow: `0 2px 8px rgba(226,0,26,0.3)`,
             }}>🏦</div>
             <h1 style={styles.title}>Fu-Fighters</h1>
-          </div>
-          <div style={styles.nicknameTag}>
-            <span style={styles.dot} />
-            {nickname}
           </div>
         </div>
 
@@ -806,25 +762,6 @@ const styles = {
     color: C.text,
     letterSpacing: "-0.3px",
   },
-  nicknameTag: {
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-    background: C.white,
-    border: `1px solid ${C.border}`,
-    borderRadius: 20,
-    padding: "5px 12px",
-    fontSize: 13,
-    color: C.textSub,
-    fontWeight: 600,
-    boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
-  },
-  dot: {
-    width: 7, height: 7,
-    borderRadius: "50%",
-    background: C.red,
-    boxShadow: `0 0 5px ${C.red}88`,
-  },
   card: {
     background: C.bgCard,
     border: `1px solid ${C.border}`,
@@ -888,19 +825,6 @@ const styles = {
     boxSizing: "border-box",
     transition: "border-color 0.2s",
   },
-  loginInput: {
-    width: "100%",
-    background: C.bgInput,
-    border: `1.5px solid ${C.border}`,
-    borderRadius: 9,
-    padding: "12px 14px",
-    color: C.text,
-    fontSize: 15,
-    outline: "none",
-    boxSizing: "border-box",
-    marginBottom: 14,
-    transition: "border-color 0.2s",
-  },
   btnPrimary: {
     background: C.red,
     color: C.white,
@@ -953,29 +877,5 @@ const styles = {
     padding: "8px 18px",
     cursor: "pointer",
     transition: "color 0.2s, border-color 0.2s",
-  },
-  loginCard: {
-    background: C.bgCard,
-    border: `1px solid ${C.border}`,
-    borderRadius: 18,
-    padding: "40px 32px",
-    maxWidth: 400,
-    width: "100%",
-    textAlign: "center",
-    boxShadow: "0 8px 32px rgba(0,0,0,0.08)",
-    marginTop: "10vh",
-  },
-  loginTitle: {
-    margin: "0 0 10px",
-    fontSize: 24,
-    fontWeight: 800,
-    color: C.text,
-    letterSpacing: "-0.3px",
-  },
-  loginSub: {
-    fontSize: 14,
-    color: C.textMuted,
-    lineHeight: 1.6,
-    marginBottom: 22,
   },
 };
