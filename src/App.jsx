@@ -1093,18 +1093,18 @@ export default function App() {
               <div className="counter-grid">
 
                 {/* Angebote */}
-                <div style={S.card}>
+                <div style={{ ...S.card, display: "flex", flexDirection: "column" }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: T.blue, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Angebote</div>
                   <div style={{ fontSize: 42, fontWeight: 800, color: T.text, lineHeight: 1, marginBottom: 4, transition: "color 0.3s" }}>{angebote}</div>
-                  <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 14 }}>diese Woche</div>
-                  <div style={{ display: "flex", gap: 6 }}>
+                  <div style={{ fontSize: 11, color: T.textMuted }}>diese Woche</div>
+                  <div style={{ display: "flex", gap: 6, marginTop: "auto", paddingTop: 14 }}>
                     <button onClick={handleRemoveAngebot} style={S.counterBtn}>−</button>
                     <button onClick={handleAddAngebot}    style={{ ...S.counterBtn, ...S.counterBtnBlue }}>+</button>
                   </div>
                 </div>
 
                 {/* Termine */}
-                <div style={S.card}>
+                <div style={{ ...S.card, display: "flex", flexDirection: "column" }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: T.purple, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Termine</div>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 4 }}>
                     <span style={{ fontSize: 42, fontWeight: 800, color: T.text, lineHeight: 1, transition: "color 0.3s" }}>{termine}</span>
@@ -1118,21 +1118,21 @@ export default function App() {
                       transition: "width 0.5s ease",
                     }} />
                   </div>
-                  <div style={{ fontSize: 11, color: termine >= TERMINE_GOAL ? T.purple : T.textMuted, marginBottom: 14, fontWeight: termine >= TERMINE_GOAL ? 700 : 400 }}>
+                  <div style={{ fontSize: 11, color: termine >= TERMINE_GOAL ? T.purple : T.textMuted, fontWeight: termine >= TERMINE_GOAL ? 700 : 400 }}>
                     {termine >= TERMINE_GOAL ? "Ziel erreicht! 🎉" : `Noch ${TERMINE_GOAL - termine} bis Ziel`}
                   </div>
-                  <div style={{ display: "flex", gap: 6 }}>
+                  <div style={{ display: "flex", gap: 6, marginTop: "auto", paddingTop: 14 }}>
                     <button onClick={handleRemoveTermin} style={S.counterBtn}>−</button>
                     <button onClick={handleAddTermin}    style={{ ...S.counterBtn, ...S.counterBtnPurple }}>+</button>
                   </div>
                 </div>
 
                 {/* RKV Abschlüsse */}
-                <div style={S.card}>
+                <div style={{ ...S.card, display: "flex", flexDirection: "column" }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: T.success, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>RKV</div>
                   <div style={{ fontSize: 42, fontWeight: 800, color: T.text, lineHeight: 1, marginBottom: 4, transition: "color 0.3s" }}>{rkv}</div>
-                  <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 14 }}>Abschlüsse</div>
-                  <div style={{ display: "flex", gap: 6 }}>
+                  <div style={{ fontSize: 11, color: T.textMuted }}>Abschlüsse</div>
+                  <div style={{ display: "flex", gap: 6, marginTop: "auto", paddingTop: 14 }}>
                     <button onClick={handleRemoveRKV} style={S.counterBtn}>−</button>
                     <button onClick={handleAddRKV}    style={{ ...S.counterBtn, ...S.counterBtnSuccess }}>+</button>
                   </div>
