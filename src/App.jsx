@@ -1,12 +1,25 @@
+/**
+ * REQUIRED DB MIGRATIONS (run once in Supabase SQL Editor before deploying):
+ *
+ *   -- Add abschluesse column to history (stores entries.length at reset time)
+ *   ALTER TABLE history ADD COLUMN IF NOT EXISTS abschluesse int NOT NULL DEFAULT 0;
+ *
+ * Assumed already present in DB:
+ *   week_state.rkv          int NOT NULL DEFAULT 0
+ *   history.rkv             int NOT NULL DEFAULT 0
+ *   history.abschluss_goal  int NOT NULL DEFAULT 0
+ */
+
 import { useState, useEffect, useRef, useContext, createContext, useMemo } from "react";
 import { supabase } from "./supabase";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const WEEKLY_GOAL   = 62500;
-const TERMINE_GOAL  = 8;
-const MILESTONES    = [25, 50, 75, 100];
+const WEEKLY_GOAL    = 62500;
+const TERMINE_GOAL   = 8;
+const ABSCHLUSS_GOAL = 4;
+const MILESTONES     = [25, 50, 75, 100];
 
-// Theme only stays in localStorage (it's personal, not shared)
+// Theme only stays in localStorage (personal, not shared)
 const STORAGE_KEY_THEME = "kredit-tracker-theme";
 function lsGet(key)        { try { return localStorage.getItem(key);  } catch { return null; } }
 function lsSet(key, value) { try { localStorage.setItem(key, value);  } catch {} }
@@ -126,18 +139,21 @@ function getMotivation(pct) {
   ).text;
 }
 
-// Map DB snake_case row → camelCase JS object used by HistoryView
+// Map DB snake_case → camelCase JS object
 function mapHistoryRow(h) {
   return {
-    weekKey:       h.week_key,
-    label:         h.label,
-    kredit:        h.kredit,
-    kreditGoal:    h.kredit_goal,
-    kreditReached: h.kredit_reached,
-    angebote:      h.angebote,
-    termine:       h.termine,
-    termineGoal:   h.termine_goal,
-    termineReached: h.termine_reached,
+    weekKey:         h.week_key,
+    label:           h.label,
+    kredit:          h.kredit,
+    kreditGoal:      h.kredit_goal,
+    kreditReached:   h.kredit_reached,
+    angebote:        h.angebote        ?? 0,
+    termine:         h.termine         ?? 0,
+    termineGoal:     h.termine_goal    ?? TERMINE_GOAL,
+    termineReached:  h.termine_reached ?? false,
+    rkv:             h.rkv             ?? 0,
+    abschluesse:     h.abschluesse     ?? 0,
+    abschlussGoal:   h.abschluss_goal  ?? ABSCHLUSS_GOAL,
   };
 }
 
@@ -198,9 +214,20 @@ function makeStyles(T) {
       marginBottom: 16, border: `1px solid ${T.border}`,
       transition: "background-color 0.3s",
     },
+    barWrapSm: {
+      height: 8, background: T.bgInput,
+      borderRadius: 4, overflow: "hidden",
+      border: `1px solid ${T.border}`,
+      transition: "background-color 0.3s",
+    },
     barFill: {
       height: "100%", borderRadius: 10,
       display: "flex", alignItems: "center", justifyContent: "flex-end",
+      minWidth: 2,
+      transition: "width 0.8s cubic-bezier(0.4,0,0.2,1)",
+    },
+    barFillSm: {
+      height: "100%", borderRadius: 4,
       minWidth: 2,
       transition: "width 0.8s cubic-bezier(0.4,0,0.2,1)",
     },
@@ -246,8 +273,9 @@ function makeStyles(T) {
       padding: "7px 0", cursor: "pointer",
       transition: "background 0.15s",
     },
-    counterBtnBlue:   { background: T.blue,   color: "#FFFFFF", border: "none" },
-    counterBtnPurple: { background: T.purple, color: "#FFFFFF", border: "none" },
+    counterBtnBlue:    { background: T.blue,    color: "#FFFFFF", border: "none" },
+    counterBtnPurple:  { background: T.purple,  color: "#FFFFFF", border: "none" },
+    counterBtnSuccess: { background: T.success, color: "#FFFFFF", border: "none" },
     emptyState: {
       textAlign: "center", color: T.textMuted,
       fontSize: 14, padding: "20px 0",
@@ -317,12 +345,32 @@ function GlobalStyle({ T }) {
         from { opacity: 0; }
         to   { opacity: 1; }
       }
+      @keyframes goalPop {
+        0%   { transform: scale(1); }
+        40%  { transform: scale(1.06); }
+        100% { transform: scale(1); }
+      }
       button { font-family: Arial, Helvetica, system-ui, -apple-system, sans-serif; }
       input  { font-family: Arial, Helvetica, system-ui, -apple-system, sans-serif; }
       input::placeholder { color: ${T.textMuted}; }
       ::-webkit-scrollbar { width: 4px; }
       ::-webkit-scrollbar-track { background: ${T.bgInput}; }
       ::-webkit-scrollbar-thumb { background: ${T.border}; border-radius: 2px; }
+
+      /* 3-column counter grid — collapses to 2 cols on narrow screens */
+      .counter-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 14px;
+      }
+      @media (max-width: 420px) {
+        .counter-grid {
+          grid-template-columns: 1fr 1fr;
+        }
+        .counter-grid > :nth-child(3) {
+          grid-column: 1 / -1;
+        }
+      }
     `}</style>
   );
 }
@@ -425,21 +473,28 @@ function HistoryView({ history, onClearHistory }) {
     );
   }
 
-  const kreditReachedCount  = history.filter((h) => h.kreditReached).length;
-  const termineReachedCount = history.filter((h) => h.termineReached).length;
-  const avgKredit    = history.reduce((s, h) => s + h.kredit, 0) / history.length;
-  const avgKreditPct = Math.round((avgKredit / 62500) * 100);
-  const avgTermine   = (history.reduce((s, h) => s + h.termine, 0) / history.length).toFixed(1);
+  const kreditReachedCount    = history.filter((h) => h.kreditReached).length;
+  const termineReachedCount   = history.filter((h) => h.termineReached).length;
+  const abschlussReachedCount = history.filter((h) => h.abschluesse >= (h.abschlussGoal ?? ABSCHLUSS_GOAL)).length;
+  const totalRkv              = history.reduce((s, h) => s + h.rkv, 0);
+
+  const avgKredit      = history.reduce((s, h) => s + h.kredit,      0) / history.length;
+  const avgKreditPct   = Math.round((avgKredit / WEEKLY_GOAL) * 100);
+  const avgTermine     = (history.reduce((s, h) => s + h.termine,     0) / history.length).toFixed(1);
+  const avgAngebote    = (history.reduce((s, h) => s + h.angebote,    0) / history.length).toFixed(1);
+  const avgRkv         = (history.reduce((s, h) => s + h.rkv,         0) / history.length).toFixed(1);
+  const avgAbschluesse = (history.reduce((s, h) => s + h.abschluesse, 0) / history.length).toFixed(1);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 
-      {/* Summary stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+      {/* Summary stats — 2×2 grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         {[
-          { label: "Wochen gesamt", value: history.length,            color: T.blue },
-          { label: "Kreditziel ✓",  value: `${kreditReachedCount}×`,  color: T.red },
-          { label: "Terminziel ✓",  value: `${termineReachedCount}×`, color: T.purple },
+          { label: "Wochen gesamt",   value: history.length,              color: T.blue   },
+          { label: "Kreditziel ✓",    value: `${kreditReachedCount}×`,    color: T.red    },
+          { label: "Terminziel ✓",    value: `${termineReachedCount}×`,   color: T.purple },
+          { label: "RKV gesamt",      value: totalRkv,                    color: T.success },
         ].map(({ label, value, color }) => (
           <div key={label} style={S.card}>
             <div style={{ fontSize: 22, fontWeight: 800, color }}>{value}</div>
@@ -450,8 +505,10 @@ function HistoryView({ history, onClearHistory }) {
 
       {/* Averages */}
       <div style={S.card}>
-        <span style={S.sectionLabel}>Ø Durchschnitt</span>
+        <span style={S.sectionLabel}>Ø Durchschnitt pro Woche</span>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+
+          {/* Kredit bar */}
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
               <span style={{ fontSize: 13, color: T.textSub }}>Kredit</span>
@@ -463,10 +520,19 @@ function HistoryView({ history, onClearHistory }) {
               <div style={{ ...S.barFill, width: `${Math.min(avgKreditPct, 100)}%`, background: T.red }} />
             </div>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 13, color: T.textSub }}>Ø Termine pro Woche</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: T.purple }}>{avgTermine} / 8</span>
-          </div>
+
+          {/* Text rows */}
+          {[
+            { label: "Angebote",    val: avgAngebote,    color: T.blue   },
+            { label: "Termine",     val: `${avgTermine} / ${TERMINE_GOAL}`,       color: T.purple  },
+            { label: "RKV",         val: avgRkv,         color: T.success },
+            { label: "Abschlüsse",  val: `${avgAbschluesse} / ${ABSCHLUSS_GOAL}`, color: T.red     },
+          ].map(({ label, val, color }) => (
+            <div key={label} style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 13, color: T.textSub }}>Ø {label}</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color }}>{val}</span>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -481,52 +547,59 @@ function HistoryView({ history, onClearHistory }) {
             🗑 Verlauf löschen
           </button>
         </div>
-        {history.map((h, i) => (
-          <div key={h.weekKey ?? i} style={{
-            borderTop: i > 0 ? `1px solid ${T.border}` : "none",
-            padding: "14px 18px",
-            display: "flex", flexDirection: "column", gap: 8,
-            transition: "border-color 0.3s",
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{h.label}</span>
-              <div style={{ display: "flex", gap: 6 }}>
+        {history.map((h, i) => {
+          const abschlussReached = h.abschluesse >= (h.abschlussGoal ?? ABSCHLUSS_GOAL);
+          return (
+            <div key={h.weekKey ?? i} style={{
+              borderTop: i > 0 ? `1px solid ${T.border}` : "none",
+              padding: "14px 18px",
+              display: "flex", flexDirection: "column", gap: 8,
+              transition: "border-color 0.3s",
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{h.label}</span>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  {[
+                    { ok: h.kreditReached,  yes: "✓ Kredit",     no: "✗ Kredit",
+                      okColor: T.success, okBg: T.successBg, noColor: T.red, noBg: T.redLight },
+                    { ok: h.termineReached, yes: "✓ Termine",    no: "✗ Termine",
+                      okColor: T.purple,  okBg: T.purpleLight, noColor: T.red, noBg: T.redLight },
+                    { ok: abschlussReached, yes: "✓ Abschlüsse", no: null,
+                      okColor: T.success, okBg: T.successBg, noColor: null, noBg: null },
+                  ].filter(({ ok, no }) => ok || no !== null).map(({ ok, yes, no, okColor, okBg, noColor, noBg }) => (
+                    <span key={yes} style={{
+                      fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 20,
+                      background: ok ? okBg : noBg,
+                      color: ok ? okColor : noColor,
+                      border: `1px solid ${ok ? okColor + "44" : noColor + "44"}`,
+                    }}>{ok ? yes : no}</span>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
                 {[
-                  { ok: h.kreditReached,  yes: "✓ Kredit",  no: "✗ Kredit",
-                    okColor: T.success, okBg: T.successBg, noColor: T.red, noBg: T.redLight },
-                  { ok: h.termineReached, yes: "✓ Termine", no: "✗ Termine",
-                    okColor: T.purple,  okBg: T.purpleLight, noColor: T.red, noBg: T.redLight },
-                ].map(({ ok, yes, no, okColor, okBg, noColor, noBg }) => (
-                  <span key={yes} style={{
-                    fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 20,
-                    background: ok ? okBg : noBg,
-                    color: ok ? okColor : noColor,
-                    border: `1px solid ${ok ? okColor + "44" : noColor + "44"}`,
-                  }}>{ok ? yes : no}</span>
+                  { label: "Kredit",      val: new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(h.kredit) + ` (${Math.round((h.kredit / h.kreditGoal) * 100)}%)` },
+                  { label: "Angebote",    val: h.angebote },
+                  { label: "Termine",     val: `${h.termine}/${h.termineGoal}` },
+                  { label: "RKV",         val: h.rkv },
+                  { label: "Abschlüsse",  val: `${h.abschluesse}/${h.abschlussGoal ?? ABSCHLUSS_GOAL}` },
+                ].map(({ label, val }) => (
+                  <div key={label} style={{ fontSize: 12, color: T.textMuted }}>
+                    {label}: <span style={{ color: T.textSub, fontWeight: 600 }}>{val}</span>
+                  </div>
                 ))}
               </div>
+              <div style={{ height: 4, background: T.bgInput, borderRadius: 2, overflow: "hidden" }}>
+                <div style={{
+                  height: "100%",
+                  width: `${Math.min((h.kredit / h.kreditGoal) * 100, 100)}%`,
+                  background: h.kreditReached ? T.success : T.red,
+                  borderRadius: 2,
+                }} />
+              </div>
             </div>
-            <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
-              {[
-                { label: "Kredit",   val: new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(h.kredit) + ` (${Math.round((h.kredit / h.kreditGoal) * 100)}%)` },
-                { label: "Angebote", val: h.angebote },
-                { label: "Termine",  val: `${h.termine}/${h.termineGoal}` },
-              ].map(({ label, val }) => (
-                <div key={label} style={{ fontSize: 12, color: T.textMuted }}>
-                  {label}: <span style={{ color: T.textSub, fontWeight: 600 }}>{val}</span>
-                </div>
-              ))}
-            </div>
-            <div style={{ height: 4, background: T.bgInput, borderRadius: 2, overflow: "hidden" }}>
-              <div style={{
-                height: "100%",
-                width: `${Math.min((h.kredit / h.kreditGoal) * 100, 100)}%`,
-                background: h.kreditReached ? T.success : T.red,
-                borderRadius: 2,
-              }} />
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Verlauf-löschen Modal */}
@@ -583,9 +656,11 @@ export default function App() {
   const praiseTimer = useRef(null);
   const [angebote,  setAngebote]  = useState(0);
   const [termine,   setTermine]   = useState(0);
+  const [rkv,       setRkv]       = useState(0);
   const [history,   setHistory]   = useState([]);
   const [activeTab, setActiveTab] = useState("dashboard");
   const prevPct = useRef(0);
+  const abschlussGoalReached = useRef(false);
 
   // ── Supabase loaders ───────────────────────────────────────────────────────
   async function reloadEntries() {
@@ -597,7 +672,8 @@ export default function App() {
     const { data } = await supabase.from("week_state").select("*").eq("id", 1).single();
     if (data) {
       setAngebote(data.angebote ?? 0);
-      setTermine(data.termine ?? 0);
+      setTermine(data.termine   ?? 0);
+      setRkv(data.rkv           ?? 0);
     }
   }
 
@@ -620,50 +696,51 @@ export default function App() {
           supabase.from("history").select("*").order("week_key", { ascending: false }),
         ]);
 
-      const ws         = wsData  || { angebote: 0, termine: 0, current_week_ms: thisMonday };
+      const ws         = wsData  || { angebote: 0, termine: 0, rkv: 0, current_week_ms: thisMonday };
       const rawEntries = entriesData || [];
 
-      // Auto-rollover when a new week has started
       if (ws.current_week_ms && ws.current_week_ms < thisMonday) {
         const weekTotal = rawEntries.reduce((s, e) => s + e.amount, 0);
 
-        if (weekTotal > 0 || ws.angebote > 0 || ws.termine > 0) {
-          // Only insert history snapshot if this weekKey isn't already there
+        if (weekTotal > 0 || ws.angebote > 0 || ws.termine > 0 || ws.rkv > 0) {
           const { data: existing } = await supabase
             .from("history").select("id").eq("week_key", ws.current_week_ms).maybeSingle();
           if (!existing) {
             await supabase.from("history").insert({
-              week_key:       ws.current_week_ms,
-              label:          getKWLabel(new Date(ws.current_week_ms)),
-              kredit:         weekTotal,
-              kredit_goal:    WEEKLY_GOAL,
-              kredit_reached: weekTotal >= WEEKLY_GOAL,
-              angebote:       ws.angebote,
-              termine:        ws.termine,
-              termine_goal:   TERMINE_GOAL,
-              termine_reached: ws.termine >= TERMINE_GOAL,
+              week_key:        ws.current_week_ms,
+              label:           getKWLabel(new Date(ws.current_week_ms)),
+              kredit:          weekTotal,
+              kredit_goal:     WEEKLY_GOAL,
+              kredit_reached:  weekTotal >= WEEKLY_GOAL,
+              angebote:        ws.angebote   ?? 0,
+              termine:         ws.termine    ?? 0,
+              termine_goal:    TERMINE_GOAL,
+              termine_reached: (ws.termine ?? 0) >= TERMINE_GOAL,
+              rkv:             ws.rkv        ?? 0,
+              abschluesse:     rawEntries.length,
+              abschluss_goal:  ABSCHLUSS_GOAL,
             });
           }
         }
 
-        // Clear entries and reset week_state to new week
         await supabase.from("entries").delete().neq("id", "00000000-0000-0000-0000-000000000000");
         await supabase.from("week_state")
-          .update({ angebote: 0, termine: 0, current_week_ms: thisMonday })
+          .update({ angebote: 0, termine: 0, rkv: 0, current_week_ms: thisMonday })
           .eq("id", 1);
 
         setEntries([]);
         setAngebote(0);
         setTermine(0);
+        setRkv(0);
 
-        // Reload history after insert
         const { data: newHist } = await supabase
           .from("history").select("*").order("week_key", { ascending: false });
         setHistory((newHist || []).map(mapHistoryRow));
       } else {
         setEntries(rawEntries);
         setAngebote(ws.angebote ?? 0);
-        setTermine(ws.termine  ?? 0);
+        setTermine(ws.termine   ?? 0);
+        setRkv(ws.rkv           ?? 0);
         setHistory((histData || []).map(mapHistoryRow));
       }
 
@@ -685,12 +762,15 @@ export default function App() {
     return () => supabase.removeChannel(channel);
   }, []);
 
-  const total    = entries.reduce((s, e) => s + e.amount, 0);
-  const pct      = Math.min((total / WEEKLY_GOAL) * 100, 100);
-  const remaining = Math.max(WEEKLY_GOAL - total, 0);
-  const goalDone  = pct >= 100;
+  const total      = entries.reduce((s, e) => s + e.amount, 0);
+  const pct        = Math.min((total / WEEKLY_GOAL) * 100, 100);
+  const remaining  = Math.max(WEEKLY_GOAL - total, 0);
+  const goalDone   = pct >= 100;
+  const abschlüsse = entries.length;
+  const abschlussePct = Math.min((abschlüsse / ABSCHLUSS_GOAL) * 100, 100);
+  const abschlusseDone = abschlüsse >= ABSCHLUSS_GOAL;
 
-  // ── Milestones ─────────────────────────────────────────────────────────────
+  // ── Milestones (Kredit) ────────────────────────────────────────────────────
   useEffect(() => {
     if (loading) return;
     MILESTONES.forEach((m) => {
@@ -703,6 +783,16 @@ export default function App() {
     });
     prevPct.current = pct;
   }, [pct, loading]);
+
+  // ── Abschluss-Ziel erreicht (visual feedback, no confetti) ────────────────
+  useEffect(() => {
+    if (loading) return;
+    if (abschlusseDone && !abschlussGoalReached.current) {
+      abschlussGoalReached.current = true;
+      showToast("🎯", `${ABSCHLUSS_GOAL} Abschlüsse — Ziel erreicht!`, false, true, 4000);
+    }
+    if (!abschlusseDone) abschlussGoalReached.current = false;
+  }, [abschlusseDone, loading]);
 
   // ── Toast helper ───────────────────────────────────────────────────────────
   const showToast = (emoji, text, isGoal = false, isInfo = false, ms = 3500) => {
@@ -731,11 +821,13 @@ export default function App() {
   const handleRemoveAngebot = async () => { const n = Math.max(0, angebote - 1); setAngebote(n); await supabase.from("week_state").update({ angebote: n }).eq("id", 1); };
   const handleAddTermin     = async () => { const n = termine + 1;               setTermine(n);  await supabase.from("week_state").update({ termine: n }).eq("id", 1); };
   const handleRemoveTermin  = async () => { const n = Math.max(0, termine - 1);  setTermine(n);  await supabase.from("week_state").update({ termine: n }).eq("id", 1); };
+  const handleAddRKV        = async () => { const n = rkv + 1;                   setRkv(n);      await supabase.from("week_state").update({ rkv: n }).eq("id", 1); };
+  const handleRemoveRKV     = async () => { const n = Math.max(0, rkv - 1);      setRkv(n);      await supabase.from("week_state").update({ rkv: n }).eq("id", 1); };
 
   const handleReset = async () => {
     const mon = getMonday().getTime();
 
-    if (total > 0 || angebote > 0 || termine > 0) {
+    if (total > 0 || angebote > 0 || termine > 0 || rkv > 0) {
       const { data: existing } = await supabase
         .from("history").select("id").eq("week_key", mon).maybeSingle();
       if (!existing) {
@@ -749,17 +841,21 @@ export default function App() {
           termine,
           termine_goal:    TERMINE_GOAL,
           termine_reached: termine >= TERMINE_GOAL,
+          rkv,
+          abschluesse:     entries.length,
+          abschluss_goal:  ABSCHLUSS_GOAL,
         });
       }
     }
 
     await supabase.from("entries").delete().neq("id", "00000000-0000-0000-0000-000000000000");
     await supabase.from("week_state")
-      .update({ angebote: 0, termine: 0, current_week_ms: mon })
+      .update({ angebote: 0, termine: 0, rkv: 0, current_week_ms: mon })
       .eq("id", 1);
 
-    setEntries([]); setAngebote(0); setTermine(0);
+    setEntries([]); setAngebote(0); setTermine(0); setRkv(0);
     setReachedMilestones(new Set()); setShowConfetti(false); setResetConfirm(false);
+    abschlussGoalReached.current = false;
     prevPct.current = 0;
   };
 
@@ -767,11 +863,12 @@ export default function App() {
     await supabase.from("history").delete().neq("id", "00000000-0000-0000-0000-000000000000");
     await supabase.from("entries").delete().neq("id", "00000000-0000-0000-0000-000000000000");
     await supabase.from("week_state")
-      .update({ angebote: 0, termine: 0, current_week_ms: getMonday().getTime() })
+      .update({ angebote: 0, termine: 0, rkv: 0, current_week_ms: getMonday().getTime() })
       .eq("id", 1);
 
-    setHistory([]); setEntries([]); setAngebote(0); setTermine(0);
+    setHistory([]); setEntries([]); setAngebote(0); setTermine(0); setRkv(0);
     setReachedMilestones(new Set()); setShowConfetti(false);
+    abschlussGoalReached.current = false;
     prevPct.current = 0;
     showToast("🗑", "Verlauf wurde gelöscht.", false, true, 3000);
   };
@@ -894,7 +991,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Progress Bar */}
+                {/* Kredit Progress Bar */}
                 <div style={S.barWrap}>
                   <div style={{
                     ...S.barFill, width: `${pct}%`,
@@ -915,7 +1012,7 @@ export default function App() {
                   ))}
                 </div>
 
-                {/* Status */}
+                {/* Kredit Status */}
                 <div style={{ textAlign: "center", fontSize: goalDone ? 17 : 14, fontWeight: goalDone ? 700 : 500,
                   color: goalDone ? T.success : T.textSub, marginBottom: 12, transition: "color 0.3s" }}>
                   {goalDone ? "🎉 Ziel erreicht!" : `Noch ${formatEuro(remaining)} bis zum Ziel`}
@@ -927,11 +1024,44 @@ export default function App() {
                   border: `1px solid ${goalDone ? T.yellow + "88" : T.red + "33"}`,
                   borderLeft: `4px solid ${goalDone ? T.yellow : T.red}`,
                   borderRadius: 8, padding: "10px 14px",
+                  marginBottom: 16,
                   transition: "background-color 0.3s",
                 }}>
                   <span style={{ fontSize: 13, color: goalDone ? (dark ? T.yellow : "#7A5800") : T.red, fontWeight: 600 }}>
                     {getMotivation(pct)}
                   </span>
+                </div>
+
+                {/* ── Abschlüsse Ziel ── */}
+                <div style={{
+                  borderTop: `1px solid ${T.border}`,
+                  paddingTop: 14,
+                  animation: abschlusseDone ? "goalPop 0.4s ease" : undefined,
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                        Abschlüsse
+                      </span>
+                      {abschlusseDone && (
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 20,
+                          background: T.successBg, color: T.success,
+                          border: `1px solid ${T.success}44`,
+                        }}>🎯 Ziel erreicht</span>
+                      )}
+                    </div>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: abschlusseDone ? T.success : T.text }}>
+                      {abschlüsse} <span style={{ fontSize: 12, fontWeight: 500, color: T.textMuted }}>/ {ABSCHLUSS_GOAL}</span>
+                    </span>
+                  </div>
+                  <div style={S.barWrapSm}>
+                    <div style={{
+                      ...S.barFillSm,
+                      width: `${abschlussePct}%`,
+                      background: abschlusseDone ? T.success : T.success + "99",
+                    }} />
+                  </div>
                 </div>
               </div>
 
@@ -959,18 +1089,21 @@ export default function App() {
                 </p>
               </div>
 
-              {/* ── Angebote & Termine ── */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              {/* ── Angebote / Termine / RKV — 3-column responsive grid ── */}
+              <div className="counter-grid">
+
+                {/* Angebote */}
                 <div style={S.card}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: T.blue, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Angebote</div>
                   <div style={{ fontSize: 42, fontWeight: 800, color: T.text, lineHeight: 1, marginBottom: 4, transition: "color 0.3s" }}>{angebote}</div>
-                  <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 14 }}>erstellt diese Woche</div>
+                  <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 14 }}>diese Woche</div>
                   <div style={{ display: "flex", gap: 6 }}>
                     <button onClick={handleRemoveAngebot} style={S.counterBtn}>−</button>
                     <button onClick={handleAddAngebot}    style={{ ...S.counterBtn, ...S.counterBtnBlue }}>+</button>
                   </div>
                 </div>
 
+                {/* Termine */}
                 <div style={S.card}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: T.purple, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Termine</div>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 4 }}>
@@ -993,6 +1126,18 @@ export default function App() {
                     <button onClick={handleAddTermin}    style={{ ...S.counterBtn, ...S.counterBtnPurple }}>+</button>
                   </div>
                 </div>
+
+                {/* RKV Abschlüsse */}
+                <div style={S.card}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: T.success, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>RKV</div>
+                  <div style={{ fontSize: 42, fontWeight: 800, color: T.text, lineHeight: 1, marginBottom: 4, transition: "color 0.3s" }}>{rkv}</div>
+                  <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 14 }}>Abschlüsse</div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button onClick={handleRemoveRKV} style={S.counterBtn}>−</button>
+                    <button onClick={handleAddRKV}    style={{ ...S.counterBtn, ...S.counterBtnSuccess }}>+</button>
+                  </div>
+                </div>
+
               </div>
 
               {/* ── Teamaktivität ── */}
